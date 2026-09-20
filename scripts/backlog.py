@@ -304,6 +304,9 @@ class GhCli:
             input=stdin,
             capture_output=True,
             text=True,
+            # Issue bodies contain arrows and box drawing. Without this, Windows encodes
+            # stdin as cp1252 and the write fails.
+            encoding="utf-8",
             check=False,
         )
         if completed.returncode != 0:
@@ -367,6 +370,9 @@ def sync(
     numbers = dict(_existing_issues(gh))
     for issue in creation_order(issues):
         if issue.title in numbers:
+            # Map the id too, so an issue created by an earlier run can still be referenced
+            # by placeholders in one created now.
+            numbers[issue.id] = numbers[issue.title]
             result.skipped_issues.append(issue.id)
             continue
         args = ["issue", "create", "--title", issue.title, "--body-file", "-"]
@@ -482,6 +488,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        # Rendered bodies are UTF-8; the default Windows console encoding is not.
+        stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args))
