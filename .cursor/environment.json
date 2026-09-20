@@ -1,0 +1,4 @@
+{
+  "name": "clash-reporter",
+  "install": "bash .cursor/install.sh"
+}
