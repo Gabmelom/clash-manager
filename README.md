@@ -196,6 +196,36 @@ The first useful milestone is intentionally narrow:
 
 Only after that works should Discord fetching and GitHub Actions scheduling be added.
 
+## Commands
+
+### Render a report from a normalized dataset
+
+```bash
+clash-reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
+clash-reporter report --input ./artifacts/normalized/monthly_players.json --month previous --dry-run
+```
+
+`--month` accepts `YYYY-MM`, `previous`, or `current` and labels the report from the reporting window instead of trusting the label stored in the dataset.
+
+### Capture raw ClashPerk payloads
+
+`fetch` downloads the raw Discord messages for a reporting month so parsers can be built from real payloads. It downloads and writes only; it never parses.
+
+```bash
+clash-reporter fetch --month 2026-08 --output ./artifacts/raw
+clash-reporter fetch --month current --output ./artifacts/raw            # the month so far
+clash-reporter fetch --month previous --channel cp-wars --sanitize
+```
+
+- `--month` - `YYYY-MM`, `previous`, or `current`. Months are resolved in `REPORT_TIMEZONE`, and `current` captures a partial, still-open month, which is the fastest way to get usable fixtures from a freshly configured server.
+- `--output` - directory for the capture. Defaults to `./artifacts/raw`.
+- `--channel` - capture one channel (`cp-members`, `cp-wars`, `cp-cwl`, `cp-capital`, `cp-games`, `cp-donations`). Repeatable. Defaults to every channel with a configured ID.
+- `--sanitize` - pseudonymize guild and Discord user IDs consistently across the capture. Message IDs, timestamps, embed structure, and player tags are preserved.
+
+Each run writes one file per channel plus a `manifest.json` recording the channel IDs, window, message counts, capture time, and Discord API version. Output is deterministic (sorted keys, chronological order), so re-capturing the same messages produces byte-identical files. A channel the bot cannot read fails the run with the channel name and leaves no file behind for it.
+
+Requires `DISCORD_BOT_TOKEN` and at least one `DISCORD_CP_*_CHANNEL_ID`. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
+
 ## Documentation
 
 - [`ROADMAP.md`](ROADMAP.md) - implementation phases and acceptance criteria
@@ -224,6 +254,9 @@ normalized dataset:
 python -m clash_reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
 ```
 
-Everything upstream of that dataset is still missing: nothing reads Discord, parses a
-ClashPerk message, or builds a monthly summary. The remaining V1 work is tracked in GitHub
-issues, seeded from [`.github/backlog/`](.github/backlog).
+Reading Discord works too: `clash-reporter fetch` resolves a timezone-aware reporting month
+and captures raw ClashPerk payloads to JSON.
+
+Still missing between the two: parsers, and the aggregation that turns events into a monthly
+summary. The remaining V1 work is tracked in GitHub issues, seeded from
+[`.github/backlog/`](.github/backlog).

@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Captured Discord payloads and generated reports. Promote fixtures into
+# tests/fixtures/ instead of committing a whole capture.
+artifacts/
