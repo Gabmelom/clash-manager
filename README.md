@@ -232,6 +232,12 @@ Each run writes one file per channel plus a `manifest.json` recording the channe
 
 Requires `DISCORD_BOT_TOKEN` and at least one `DISCORD_CP_*_CHANNEL_ID`. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
 
+## Expected ClashPerk payloads
+
+ClashPerk is open source, so the exact shape of every log message can be read from its log builders in [clashperk/clashperk](https://github.com/clashperk/clashperk) (`src/core/clan-log.ts`, `clan-war-log.ts`, `capital-log.ts`, `clan-games-log.ts`, `donation-log.ts`). Parser work does not have to wait for a month of live Discord history.
+
+`tests/fixtures/` already contains one message per log family, synthesized from those builders with sanitized IDs; [`tests/fixtures/README.md`](tests/fixtures/README.md) records the provenance of each file. A real capture always wins over a synthetic fixture where the two disagree. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), "ClashPerk's source is the payload reference".
+
 ## Documentation
 
 - [`ROADMAP.md`](ROADMAP.md) - implementation phases and acceptance criteria
