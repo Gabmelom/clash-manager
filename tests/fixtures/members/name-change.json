@@ -1,0 +1,53 @@
+{
+  "attachments": [],
+  "author": {
+    "avatar": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "bot": true,
+    "discriminator": "0000",
+    "flags": 0,
+    "global_name": null,
+    "id": "300000000000000001",
+    "public_flags": 0,
+    "username": "ClashPerk"
+  },
+  "channel_id": "400000000000000001",
+  "components": [
+    {
+      "components": [
+        {
+          "custom_id": "{\"cmd\":\"player\",\"tag\":\"#2Y0LRPV8Q\",\"ephemeral\":true}",
+          "label": "View Profile",
+          "style": 2,
+          "type": 2
+        }
+      ],
+      "type": 1
+    }
+  ],
+  "content": "",
+  "edited_timestamp": null,
+  "embeds": [
+    {
+      "color": 14653030,
+      "description": "Name changed from **AuroraBorealis**",
+      "footer": {
+        "icon_url": "https://api-assets.clashofclans.com/badges/70/EXAMPLEBADGEHASH.png",
+        "text": "Maple Legends"
+      },
+      "timestamp": "2026-08-22T09:33:51.902000+00:00",
+      "title": "‎Aurora (#2Y0LRPV8Q)",
+      "type": "rich",
+      "url": "https://www.clashofstats.com/players/2Y0LRPV8Q"
+    }
+  ],
+  "flags": 0,
+  "id": "1540655234530548485",
+  "mention_everyone": false,
+  "mention_roles": [],
+  "mentions": [],
+  "pinned": false,
+  "timestamp": "2026-08-22T09:33:51.902000+00:00",
+  "tts": false,
+  "type": 0,
+  "webhook_id": "300000000000000001"
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,24 +16,8 @@ from clash_reporter.discord_client import DiscordClient
 SAMPLE_DATASET = Path(__file__).parent / "fixtures" / "normalized" / "monthly_players.sample.json"
 TOKEN = "not-a-real-token-abc123"  # noqa: S105 - dummy value for mocked transports
 
-MESSAGES = [
-    {
-        "id": "200",
-        "channel_id": "111",
-        "guild_id": "900",
-        "timestamp": "2026-08-20T18:00:00+00:00",
-        "author": {"id": "700", "username": "ClashPerk", "bot": True},
-        "content": "Aurora (#R22YRC0UY) joined",
-    },
-    {
-        "id": "100",
-        "channel_id": "111",
-        "guild_id": "900",
-        "timestamp": "2026-08-02T18:00:00+00:00",
-        "author": {"id": "700", "username": "ClashPerk", "bot": True},
-        "content": "Borealis (#9LP0YQ8G) left",
-    },
-]
+MEMBERS_CHANNEL = "400000000000000001"
+WARS_CHANNEL = "400000000000000002"
 
 
 @pytest.fixture(autouse=True)
@@ -59,11 +43,22 @@ class DiscordStub:
 
 
 @pytest.fixture
-def discord_stub(monkeypatch: pytest.MonkeyPatch) -> Iterator[DiscordStub]:
-    """Install a mocked transport behind the client the CLI builds."""
+def discord_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    clashperk_message: Callable[[str], dict[str, Any]],
+) -> Iterator[DiscordStub]:
+    """Install a mocked transport serving real ClashPerk history to the CLI's client."""
     stub = DiscordStub(requests=[], client_kwargs=[])
-    # cp-members answers with a page of history once, then runs out.
-    responses: dict[str, httpx.Response] = {"111": httpx.Response(200, json=MESSAGES)}
+    # cp-members answers with one page of history, then runs out.
+    responses: dict[str, httpx.Response] = {
+        MEMBERS_CHANNEL: httpx.Response(
+            200,
+            json=[
+                clashperk_message("members/leave.json"),  # 2026-08-19
+                clashperk_message("members/join.json"),  # 2026-08-03
+            ],
+        )
+    }
 
     def handler(request: httpx.Request) -> httpx.Response:
         stub.requests.append(request)
@@ -115,7 +110,7 @@ def test_fetch_writes_channel_files_and_a_manifest(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     exit_code = cli.main(
         ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "cp-members"]
@@ -123,7 +118,11 @@ def test_fetch_writes_channel_files_and_a_manifest(
 
     assert exit_code == 0
     written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    assert [message["id"] for message in written] == ["100", "200"]
+    assert [message["timestamp"] for message in written] == [
+        "2026-08-03T18:12:44.281000+00:00",
+        "2026-08-19T02:41:09.553000+00:00",
+    ]
+    assert written[0]["embeds"][0]["title"] == "\u200eAurora (#2Y0LRPV8Q)"
     manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["window"]["month_key"] == "2026-08"
     assert manifest["channels"][0]["message_count"] == 2
@@ -138,7 +137,7 @@ def test_fetch_uses_the_configured_api_base_url(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     monkeypatch.setenv("DISCORD_API_BASE_URL", "http://127.0.0.1:8787/api")
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
@@ -152,7 +151,7 @@ def test_fetch_defaults_to_the_public_discord_api(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
     assert discord_stub.client_kwargs == [{"base_url": "https://discord.com/api"}]
@@ -165,7 +164,7 @@ def test_fetch_current_month_reports_a_partial_capture(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     exit_code = cli.main(["fetch", "--month", "current", "--output", str(tmp_path)])
 
@@ -181,8 +180,8 @@ def test_fetch_captures_every_configured_channel_by_default(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
-    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", "222")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", WARS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
     assert (tmp_path / "cp-members.json").exists()
@@ -193,7 +192,7 @@ def test_fetch_captures_every_configured_channel_by_default(
 def test_fetch_without_a_token_fails_closed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)])
     assert exit_code == 2
     assert "DISCORD_BOT_TOKEN" in capsys.readouterr().err
@@ -213,7 +212,7 @@ def test_fetch_names_a_requested_channel_that_is_not_configured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(
         ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "cp-wars"]
     )
@@ -225,7 +224,7 @@ def test_fetch_reports_an_unreadable_channel_by_name(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", "222")
+    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", WARS_CHANNEL)
 
     def build(token: str, **kwargs: Any) -> DiscordClient:
         return DiscordClient(
@@ -253,12 +252,13 @@ def test_fetch_sanitize_flag_pseudonymizes_ids(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path), "--sanitize"]) == 0
     written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    assert written[0]["guild_id"] != "900"
-    assert "#R22YRC0UY" in json.dumps(written)
+    assert written[0]["webhook_id"] != "300000000000000001"
+    assert written[0]["author"]["id"] == written[0]["webhook_id"]
+    assert "#2Y0LRPV8Q" in json.dumps(written)
     assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["sanitized"]
 
 
@@ -274,7 +274,7 @@ def test_fetch_rejects_an_invalid_month(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(["fetch", "--month", "august", "--output", str(tmp_path)])
     assert exit_code == 2
     assert "Invalid month" in capsys.readouterr().err

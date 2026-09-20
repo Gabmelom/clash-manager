@@ -1,0 +1,50 @@
+{
+  "attachments": [],
+  "author": {
+    "avatar": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "bot": true,
+    "discriminator": "0000",
+    "flags": 0,
+    "global_name": null,
+    "id": "300000000000000002",
+    "public_flags": 0,
+    "username": "ClashPerk"
+  },
+  "channel_id": "400000000000000002",
+  "components": [],
+  "content": "",
+  "edited_timestamp": null,
+  "embeds": [
+    {
+      "description": "**War Against **\n**[Northern Lights (#8LQJ2CGU)](https://link.clashofclans.com/en?action=OpenClanProfile&tag=%238LQJ2CGU)**\n\n",
+      "fields": [
+        {
+          "inline": false,
+          "name": "2 Missed Attacks",
+          "value": "‎<:12:813694740192559135> Dune"
+        },
+        {
+          "inline": false,
+          "name": "1 Missed Attacks",
+          "value": "‎<:7:813694740250886164> Cascade"
+        }
+      ],
+      "thumbnail": {
+        "url": "https://api-assets.clashofclans.com/badges/70/EXAMPLEBADGEHASH.png"
+      },
+      "title": "Maple Legends (#2QP9VL8C)",
+      "type": "rich",
+      "url": "https://link.clashofclans.com/en?action=OpenClanProfile&tag=%232QP9VL8C"
+    }
+  ],
+  "flags": 0,
+  "id": "1538094951127718663",
+  "mention_everyone": false,
+  "mention_roles": [],
+  "mentions": [],
+  "pinned": false,
+  "timestamp": "2026-08-15T08:00:12.771000+00:00",
+  "tts": false,
+  "type": 0,
+  "webhook_id": "300000000000000002"
+}
