@@ -236,6 +236,35 @@ def test_sync_resolves_placeholders_to_real_issue_numbers() -> None:
     assert "{{issue:" not in epic_body_sent
 
 
+def test_sync_resumes_after_a_partial_run_without_breaking_references() -> None:
+    """A placeholder must resolve to an issue an earlier run already created."""
+    epic_body = "## Tracked issues\n- [ ] {{issue:dep}}\n\n## Acceptance criteria\n- [ ] shipped\n"
+    issues = [
+        _issue("dep"),
+        _issue("epic", labels=["epic"], tracks=["dep"], body=epic_body),
+    ]
+    gh = FakeGh(issues={"Title for dep": 5})
+    backlog.sync(issues, backlog.load_labels(), gh)
+
+    created = [stdin for args, stdin in gh.calls if args[:2] == ["issue", "create"]]
+    assert len(created) == 1
+    assert "#5" in created[0]
+    assert "not filed yet" not in created[0]
+
+
+def test_gh_writes_stdin_as_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bodies contain arrows and box drawing; Windows must not encode stdin as cp1252."""
+    captured: dict[str, Any] = {}
+
+    def fake_run(command: Any, **kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(backlog.subprocess, "run", fake_run)
+    backlog.GhCli().run(["issue", "create"], stdin="export → report │ ok")
+    assert captured["encoding"] == "utf-8"
+
+
 def test_sync_dry_run_makes_no_changes() -> None:
     gh = FakeGh()
     result = backlog.sync([_issue("a")], backlog.load_labels(), gh, dry_run=True)
