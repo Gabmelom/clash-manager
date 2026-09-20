@@ -55,6 +55,30 @@ python scripts/backlog.py sync         # create labels + issues via the gh CLI
 `sync` is idempotent: it skips labels and issues that already exist and never edits an
 existing issue. It requires a `gh` login with write access to the repository.
 
+## Pull requests are published, not proposed
+
+Code review happens on GitHub. Chat is for deciding what to build; the pull request is where
+the work is judged. So:
+
+1. **Every turn that changes code ends with an open pull request.** Commit, push, and open
+   the PR before you write your summary. Never leave finished work sitting on a branch, and
+   never wait for a "go ahead" in chat before opening it.
+2. **Open PRs ready for review, not as drafts.** A draft says "not ready to look at", which
+   is the opposite of the handoff being made.
+3. **The description carries the review context.** What changed, why, how it was verified,
+   and anything the reviewer should push back on. Assume the reviewer reads only GitHub.
+4. **End the turn by saying the PR is open and waiting for review, with the link.** That
+   sentence is the handoff. Do not bury it under a summary of the work.
+5. **Decide rather than ask.** If an implementation choice is ambiguous, pick the option most
+   consistent with the docs in this repository, ship it, and record the alternative you
+   rejected in the PR description so it can be argued with in review.
+6. **Keep the PR current.** If you change anything after opening it - including in response
+   to review - push and update the description in the same turn.
+
+If the PR tool reports that creation was only registered for approval rather than completed,
+say so plainly and give the branch name, because that is an account-level Cloud Agent
+setting the repository cannot override.
+
 ## Environment and commands
 
 Python 3.12+. The virtualenv lives in `.venv` and is created by `.cursor/install.sh`.
