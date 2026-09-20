@@ -1,0 +1,48 @@
+name: Task
+description: A shippable slice of work on the monthly reporter
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One issue should describe one pull request's worth of work inside a single
+        architectural layer. See `AGENTS.md` for the workflow.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this work exists, and what currently does not work without it.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What this issue changes. Name the modules and files where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Work that is deliberately left to another issue.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist a reviewer can verify. Include the tests that must exist.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issues that must land first, or "None".
+      value: None
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Docs, roadmap phases, and external links that define the behavior.

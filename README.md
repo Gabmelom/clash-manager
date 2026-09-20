@@ -205,6 +205,7 @@ Only after that works should Discord fetching and GitHub Actions scheduling be a
 - [`docs/REPORT_SPEC.md`](docs/REPORT_SPEC.md) - initial report and ranking behavior
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) - development and testing conventions
 - [`docs/CODING_AGENT_BRIEF.md`](docs/CODING_AGENT_BRIEF.md) - concise implementation brief for a coding agent
+- [`AGENTS.md`](AGENTS.md) - how work is orchestrated through GitHub issues, plus the commands to run
 
 ## External documentation
 
@@ -216,4 +217,13 @@ Only after that works should Discord fetching and GitHub Actions scheduling be a
 
 ## Status
 
-**Planning / bootstrap.** No production code exists yet.
+**Early implementation.** Scoring, ranking, and report rendering work offline against a
+normalized dataset:
+
+```bash
+python -m clash_reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
+```
+
+Everything upstream of that dataset is still missing: nothing reads Discord, parses a
+ClashPerk message, or builds a monthly summary. The remaining V1 work is tracked in GitHub
+issues, seeded from [`.github/backlog/`](.github/backlog).

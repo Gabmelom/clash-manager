@@ -1,0 +1,18 @@
+---
+description: How work is planned, picked up, and closed in this repository
+alwaysApply: true
+---
+
+Work in this repository is orchestrated through GitHub issues. `AGENTS.md` is the full
+guide; the non-negotiable parts are:
+
+- Start from an issue. If none covers the work, write one first.
+- One issue, one branch, one pull request. Every PR body carries `Closes #<number>`.
+- Never start an issue whose Dependencies section lists an open blocker.
+- Scope discovered mid-PR becomes a new issue, not a bigger PR.
+- The V1 backlog is seeded from `.github/backlog/*.md` via `python scripts/backlog.py sync`.
+  Once an issue exists on GitHub, GitHub is the source of truth and the file is history.
+- Cloud Agents have a read-only GitHub token: add a backlog file and ask the user to sync
+  rather than trying to call the issues API.
+
+Before coding, read `docs/CODING_AGENT_BRIEF.md` for the project's hard constraints.

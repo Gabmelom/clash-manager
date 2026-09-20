@@ -1,0 +1,19 @@
+---
+description: Every change ships as an open pull request, reviewed on GitHub
+alwaysApply: true
+---
+
+Review happens on GitHub, not in chat. `AGENTS.md` has the full section; the
+non-negotiable parts are:
+
+- Every turn that changes code ends with a pushed branch and an open pull request. Do not
+  wait for chat confirmation before opening it.
+- Open the PR ready for review, never as a draft.
+- Put the review context in the PR description - what changed, why, how it was verified -
+  and assume the reviewer reads only GitHub.
+- Close the turn by stating that the PR is open and waiting for review, with the link.
+- When an implementation choice is ambiguous, decide it, ship it, and record the rejected
+  alternative in the PR description instead of stopping to ask.
+- If the PR tool reports that creation was only registered for approval, say so and name the
+  branch; that gate is an account-level Cloud Agent setting, not something this repository
+  controls.
