@@ -9,6 +9,7 @@ tracks:
   - parser-framework-members
   - war-cwl-parsers
   - games-capital-donations-parsers
+  - name-only-log-tag-attribution
   - monthly-aggregation
   - post-report-to-discord
   - ci-workflow
@@ -64,6 +65,7 @@ clashperk-channel-setup (human)
 - [ ] {{issue:parser-framework-members}} - parser framework, diagnostics, members parser
 - [ ] {{issue:war-cwl-parsers}} - regular war and CWL parsers
 - [ ] {{issue:games-capital-donations-parsers}} - Clan Games, Capital, donations parsers
+- [ ] {{issue:name-only-log-tag-attribution}} - resolve name-only logs to player tags
 - [ ] {{issue:monthly-aggregation}} - monthly aggregation and `normalize`
 - [ ] {{issue:post-report-to-discord}} - post the report to `#clan-reports`
 - [ ] {{issue:ci-workflow}} - CI on pull requests
