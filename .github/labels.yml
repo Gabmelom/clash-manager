@@ -1,0 +1,58 @@
+# Label taxonomy for clash-reporter. Create or update the labels on GitHub with:
+#   python scripts/backlog.py sync
+# Existing GitHub defaults (bug, documentation, enhancement, ...) are not repeated here.
+
+- name: epic
+  color: "5319e7"
+  description: Tracking issue that links other issues
+
+- name: phase-0
+  color: "c2e0c6"
+  description: Roadmap phase 0 - Discord and ClashPerk setup
+- name: phase-1
+  color: "c2e0c6"
+  description: Roadmap phase 1 - fixture capture and parser foundation
+- name: phase-2
+  color: "c2e0c6"
+  description: Roadmap phase 2 - monthly aggregation
+- name: phase-3
+  color: "c2e0c6"
+  description: Roadmap phase 3 - metrics and rankings
+- name: phase-4
+  color: "c2e0c6"
+  description: Roadmap phase 4 - Discord report rendering
+- name: phase-5
+  color: "c2e0c6"
+  description: Roadmap phase 5 - scheduled execution
+- name: phase-6
+  color: "c2e0c6"
+  description: Roadmap phase 6 - validation against ClashPerk exports
+
+- name: "area:discord"
+  color: "1d76db"
+  description: Discord REST transport and collectors
+- name: "area:parsers"
+  color: "1d76db"
+  description: ClashPerk message parsing
+- name: "area:aggregation"
+  color: "1d76db"
+  description: Membership intervals and monthly summaries
+- name: "area:scoring"
+  color: "1d76db"
+  description: Metrics, eligibility, and rankings
+- name: "area:reporting"
+  color: "1d76db"
+  description: Report rendering and Discord output
+- name: "area:ci"
+  color: "1d76db"
+  description: Tooling, workflows, and repository automation
+
+- name: agent-ready
+  color: "0e8a16"
+  description: Unblocked and fully specified, safe for a coding agent to pick up
+- name: needs-fixtures
+  color: "fbca04"
+  description: Blocked until real ClashPerk payloads are captured
+- name: human-task
+  color: "d93f0b"
+  description: Needs Discord or ClashPerk admin access a coding agent does not have

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ClashPerk log documentation
+    url: https://docs.clashperk.com/features/logs
+    about: Which ClashPerk logs exist and what they post
+  - name: Discord message API
+    url: https://docs.discord.com/developers/resources/message
+    about: Channel history, pagination, and message payload shape

@@ -2,6 +2,10 @@
 
 This is currently a small personal automation project. Keep contributions incremental and easy to verify.
 
+## Work is tracked in GitHub issues
+
+Every change starts from an issue, and every pull request closes or references one. `AGENTS.md` documents the full workflow, the label taxonomy, and how the V1 backlog in `.github/backlog/` is seeded into the tracker.
+
 ## Pull request expectations
 
 - Keep PRs focused on one architectural layer where possible.

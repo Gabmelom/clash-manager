@@ -1,0 +1,37 @@
+name: Bug
+description: Something the reporter gets wrong
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Command, month, and the fixture or channel involved.
+    validations:
+      required: true
+  - type: textarea
+    id: payload
+    attributes:
+      label: Offending ClashPerk payload
+      description: >
+        Sanitized Discord message JSON, if a parser is involved. Remove tokens and
+        authorization headers; keep the message and embed structure intact.
+      render: json
+  - type: checkboxes
+    id: fixture
+    attributes:
+      label: Regression fixture
+      options:
+        - label: I can attach a sanitized fixture that reproduces this
