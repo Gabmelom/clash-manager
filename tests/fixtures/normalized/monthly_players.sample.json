@@ -1,0 +1,103 @@
+{
+  "month_label": "August 2026",
+  "clan_name": "Maple Legends",
+  "regular_wars": 8,
+  "cwl_rounds": 7,
+  "clan_games_completed": true,
+  "raid_weekends": 4,
+  "players": [
+    {
+      "player_tag": "#AAA111",
+      "current_display_name": "Aurora",
+      "membership": { "eligible_days": 31 },
+      "regular_war": {
+        "wars_participated": 8,
+        "attacks_available": 16,
+        "attacks_used": 16,
+        "attacks_missed": 0,
+        "total_stars": 43,
+        "average_stars": 2.69,
+        "average_destruction_percent": 96.4
+      },
+      "cwl": {
+        "rounds_in_lineup": 7,
+        "attacks_available": 7,
+        "attacks_used": 7,
+        "attacks_missed": 0,
+        "total_stars": 17,
+        "average_stars": 2.43
+      },
+      "clan_games": { "points": 4000 },
+      "capital": { "contribution": 71500, "raid_attacks": 6 }
+    },
+    {
+      "player_tag": "#BBB222",
+      "current_display_name": "Baxter",
+      "membership": { "eligible_days": 31 },
+      "regular_war": {
+        "wars_participated": 8,
+        "attacks_available": 16,
+        "attacks_used": 15,
+        "attacks_missed": 1,
+        "total_stars": 38,
+        "average_stars": 2.53
+      },
+      "cwl": {
+        "rounds_in_lineup": 6,
+        "attacks_available": 6,
+        "attacks_used": 6,
+        "attacks_missed": 0,
+        "total_stars": 14,
+        "average_stars": 2.33
+      },
+      "clan_games": { "points": 3200 },
+      "capital": { "contribution": 42000, "raid_attacks": 6 }
+    },
+    {
+      "player_tag": "#CCC333",
+      "current_display_name": "Cinder",
+      "membership": { "eligible_days": 31 },
+      "regular_war": {
+        "wars_participated": 6,
+        "attacks_available": 12,
+        "attacks_used": 8,
+        "attacks_missed": 4,
+        "total_stars": 15,
+        "average_stars": 1.88
+      },
+      "cwl": {
+        "rounds_in_lineup": 5,
+        "attacks_available": 5,
+        "attacks_used": 3,
+        "attacks_missed": 2,
+        "total_stars": 6,
+        "average_stars": 2.0
+      },
+      "clan_games": { "points": 600 },
+      "capital": { "contribution": 0, "raid_attacks": 0 }
+    },
+    {
+      "player_tag": "#DDD444",
+      "current_display_name": "Delta",
+      "membership": { "eligible_days": 3, "joined_this_month": true, "joined_on": "Aug 29" },
+      "regular_war": { "wars_participated": 1, "attacks_available": 2, "attacks_used": 2 },
+      "clan_games": { "points": null },
+      "capital": { "contribution": null }
+    },
+    {
+      "player_tag": "#EEE555",
+      "current_display_name": "Echo",
+      "membership": { "eligible_days": 12, "departed_this_month": true, "left_on": "Aug 12" },
+      "regular_war": {
+        "wars_participated": 3,
+        "attacks_available": 6,
+        "attacks_used": 4,
+        "attacks_missed": 2
+      },
+      "capital": { "contribution": 5000 }
+    }
+  ],
+  "data_notes": [
+    "1 ClashPerk message used an unsupported layout and was ignored."
+  ]
+}
