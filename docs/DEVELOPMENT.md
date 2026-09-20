@@ -45,6 +45,32 @@ A single end-to-end command should eventually be enough for GitHub Actions:
 python -m clash_reporter run --month previous --post
 ```
 
+## Capture raw payloads
+
+`clash-reporter fetch` downloads the raw Discord messages for a reporting month. It is the
+only step that needs live Discord access, and it is deliberately parse-free.
+
+```bash
+clash-reporter fetch --month 2026-08 --output ./artifacts/raw
+clash-reporter fetch --month current --output ./artifacts/raw     # the month so far
+clash-reporter fetch --month previous --channel cp-wars --sanitize
+```
+
+Notes:
+
+- `--month` accepts `YYYY-MM`, `previous`, and `current`, resolved in `REPORT_TIMEZONE`.
+  A still-open month is a valid capture: waiting for a complete calendar month is never
+  required to start building parsers.
+- Each run writes `<channel>.json` per channel plus `manifest.json` with the channel IDs,
+  window, message counts, capture time, and Discord API version.
+- Output is deterministic - sorted keys, two-space indentation, chronological order - so a
+  re-capture of the same messages produces byte-identical files and reviewable diffs.
+- `--sanitize` pseudonymizes guild and Discord user IDs, mapping each source ID to the same
+  replacement for the whole run. Message IDs, timestamps, content text, embed structure, and
+  player tags are preserved.
+- A channel the bot cannot read fails the run with the channel name. No empty or partial
+  file is written for it, so a capture is never silently incomplete.
+
 ## Develop parsers from fixtures
 
 Before implementing a parser:
@@ -55,6 +81,38 @@ Before implementing a parser:
 4. write the failing parser test
 5. implement only enough parsing to satisfy the fixture
 6. add edge-case fixtures as new formats appear
+
+### Promote a captured file into `tests/fixtures/`
+
+A capture under `artifacts/raw/` is a whole channel. A fixture is the smallest payload that
+pins down one ClashPerk message format.
+
+1. Capture with `--sanitize` unless the raw IDs are genuinely needed:
+
+   ```bash
+   clash-reporter fetch --month current --output ./artifacts/raw --sanitize
+   ```
+
+2. Find the messages illustrating the format, for example a member join:
+
+   ```bash
+   python - <<'PY'
+   import json, pathlib
+   messages = json.loads(pathlib.Path("artifacts/raw/cp-members.json").read_text())
+   for message in messages:
+       print(message["id"], message["content"][:80] or message.get("embeds"))
+   PY
+   ```
+
+3. Copy the chosen message objects into `tests/fixtures/<log-type>/<case>.json`, using the
+   naming in the fixture structure above (`members/join.json`, `wars/attack.json`, ...).
+   Keep one message per file, or a short list when the case is about several messages.
+4. Re-check the file before committing: no bot token, no unsanitized user or guild IDs, and
+   player tags intact if the parser needs them. See `CONTRIBUTING.md`, "Commit useful
+   fixtures".
+5. Write the failing parser test against the fixture, then implement the parser.
+
+`artifacts/` is ignored by git; only files promoted into `tests/fixtures/` are committed.
 
 Suggested fixture structure:
 

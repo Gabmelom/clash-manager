@@ -8,8 +8,28 @@ live here so they can be tuned without touching business logic.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Final
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: ClashPerk data channels, in capture order. Names are configuration, not
+#: business logic: everything downstream addresses a channel by this name and
+#: resolves the ID through :class:`Settings`.
+DATA_CHANNELS: Final[tuple[str, ...]] = (
+    "cp-members",
+    "cp-wars",
+    "cp-cwl",
+    "cp-capital",
+    "cp-games",
+    "cp-donations",
+)
+
+
+def channel_env_var(name: str) -> str:
+    """Environment variable holding the ID of a data channel."""
+    return f"DISCORD_{name.replace('-', '_').upper()}_CHANNEL_ID"
 
 
 class ScoringConfig(BaseSettings):
@@ -71,3 +91,51 @@ class Settings(BaseSettings):
         ]
         if missing:
             raise RuntimeError("Missing required Discord configuration: " + ", ".join(missing))
+
+    def require_bot_token(self) -> str:
+        """The bot token, or a failure that never echoes its value."""
+        if not self.discord_bot_token:
+            raise RuntimeError("Missing required Discord configuration: DISCORD_BOT_TOKEN")
+        return self.discord_bot_token
+
+    def channel_id(self, name: str) -> str | None:
+        """ID configured for a data channel name such as ``cp-wars``."""
+        if name not in DATA_CHANNELS:
+            raise KeyError(f"Unknown data channel {name!r}. Known channels: {known_channels()}")
+        value = getattr(self, f"discord_{name.replace('-', '_')}_channel_id")
+        return str(value) if value else None
+
+    def data_channel_ids(self, names: Sequence[str] | None = None) -> dict[str, str]:
+        """Configured data channels, in capture order, skipping unset ones."""
+        selected = tuple(names) if names else DATA_CHANNELS
+        resolved: dict[str, str] = {}
+        for name in selected:
+            channel_id = self.channel_id(name)
+            if channel_id:
+                resolved[name] = channel_id
+        return resolved
+
+    def require_data_channels(self, names: Sequence[str] | None = None) -> dict[str, str]:
+        """Fail closed when a requested data channel has no configured ID."""
+        if names:
+            unknown = [name for name in names if name not in DATA_CHANNELS]
+            if unknown:
+                raise RuntimeError(
+                    f"Unknown data channel(s): {', '.join(unknown)}. "
+                    f"Known channels: {known_channels()}"
+                )
+        resolved = self.data_channel_ids(names)
+        if names:
+            missing = [channel_env_var(name) for name in names if name not in resolved]
+            if missing:
+                raise RuntimeError("Missing required Discord configuration: " + ", ".join(missing))
+        elif not resolved:
+            raise RuntimeError(
+                "No ClashPerk data channels configured. Set at least one of: "
+                + ", ".join(channel_env_var(name) for name in DATA_CHANNELS)
+            )
+        return resolved
+
+
+def known_channels() -> str:
+    return ", ".join(DATA_CHANNELS)
