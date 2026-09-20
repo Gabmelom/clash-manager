@@ -107,7 +107,9 @@ def capture_channels(
         path = output_dir / f"{name}.json"
         _write_atomic(path, dump_json(messages))
         logger.info(
-            "captured channel",
+            "captured %s: %d messages",
+            name,
+            len(messages),
             extra={
                 "operation": "fetch",
                 "channel": name,

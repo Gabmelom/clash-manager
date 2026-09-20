@@ -168,6 +168,12 @@ DISCORD_REPORT_CHANNEL_ID=
 REPORT_TIMEZONE=America/Toronto
 ```
 
+Optional:
+
+```text
+DISCORD_API_BASE_URL=   # defaults to https://discord.com/api; override for a local stub
+```
+
 Do not commit bot tokens or secrets.
 
 ## Discord permissions

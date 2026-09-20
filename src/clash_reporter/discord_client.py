@@ -226,7 +226,9 @@ class DiscordClient:
                         context=context,
                     )
                 logger.warning(
-                    "discord rate limited",
+                    "rate limited on %s, retrying in %.2fs",
+                    context,
+                    delay,
                     extra={"operation": path, "context": context, "retry_after": delay},
                 )
                 self._sleep(delay)
@@ -246,7 +248,10 @@ class DiscordClient:
                     self._max_backoff_seconds,
                 )
                 logger.warning(
-                    "discord server error",
+                    "discord returned %s for %s, retrying in %.2fs",
+                    status,
+                    context,
+                    delay,
                     extra={"operation": path, "context": context, "status": status},
                 )
                 self._sleep(delay)

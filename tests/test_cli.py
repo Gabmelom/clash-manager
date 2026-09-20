@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ MESSAGES = [
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for variable in (
+        "DISCORD_API_BASE_URL",
         "DISCORD_BOT_TOKEN",
         "DISCORD_GUILD_ID",
         "DISCORD_REPORT_CHANNEL_ID",
@@ -48,24 +50,30 @@ def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(Path(__file__).parent)  # keep a stray .env out of the way
 
 
+@dataclass
+class DiscordStub:
+    """What the CLI asked for, recorded behind a mocked transport."""
+
+    requests: list[httpx.Request]
+    client_kwargs: list[dict[str, Any]]
+
+
 @pytest.fixture
-def discord_responses(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[httpx.Request]]:
+def discord_stub(monkeypatch: pytest.MonkeyPatch) -> Iterator[DiscordStub]:
     """Install a mocked transport behind the client the CLI builds."""
-    requests: list[httpx.Request] = []
-    responses: dict[str, httpx.Response] = {}
+    stub = DiscordStub(requests=[], client_kwargs=[])
+    # cp-members answers with a page of history once, then runs out.
+    responses: dict[str, httpx.Response] = {"111": httpx.Response(200, json=MESSAGES)}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
+        stub.requests.append(request)
         channel_id = request.url.path.split("/")[-2]
-        response = responses.get(channel_id)
-        if response is None:
-            return httpx.Response(200, json=[])
-        # Serve the canned page once, then an empty page to end pagination.
-        responses[channel_id] = httpx.Response(200, json=[])
-        return response
+        response = responses.pop(channel_id, None)
+        return response if response is not None else httpx.Response(200, json=[])
 
     def build(token: str, **kwargs: Any) -> DiscordClient:
         assert token == TOKEN
+        stub.client_kwargs.append(kwargs)
         return DiscordClient(
             token,
             transport=httpx.MockTransport(handler),
@@ -74,9 +82,7 @@ def discord_responses(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[httpx.Re
         )
 
     monkeypatch.setattr(cli, "DiscordClient", build)
-    requests.clear()
-    responses["111"] = httpx.Response(200, json=MESSAGES)
-    yield requests
+    yield stub
 
 
 def test_report_still_renders_without_a_month(capsys: pytest.CaptureFixture[str]) -> None:
@@ -106,7 +112,7 @@ def test_fetch_writes_channel_files_and_a_manifest(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    discord_responses: list[httpx.Request],
+    discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
     monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
@@ -126,11 +132,37 @@ def test_fetch_writes_channel_files_and_a_manifest(
     assert "Manifest:" in out
 
 
+def test_fetch_uses_the_configured_api_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    discord_stub: DiscordStub,
+) -> None:
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+    monkeypatch.setenv("DISCORD_API_BASE_URL", "http://127.0.0.1:8787/api")
+
+    assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
+    assert discord_stub.client_kwargs == [{"base_url": "http://127.0.0.1:8787/api"}]
+    assert str(discord_stub.requests[0].url).startswith("http://127.0.0.1:8787/api/v10/channels/")
+
+
+def test_fetch_defaults_to_the_public_discord_api(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    discord_stub: DiscordStub,
+) -> None:
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
+
+    assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
+    assert discord_stub.client_kwargs == [{"base_url": "https://discord.com/api"}]
+
+
 def test_fetch_current_month_reports_a_partial_capture(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    discord_responses: list[httpx.Request],
+    discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
     monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
@@ -146,7 +178,7 @@ def test_fetch_current_month_reports_a_partial_capture(
 def test_fetch_captures_every_configured_channel_by_default(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    discord_responses: list[httpx.Request],
+    discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
     monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")
@@ -218,7 +250,7 @@ def test_fetch_reports_an_unreadable_channel_by_name(
 def test_fetch_sanitize_flag_pseudonymizes_ids(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    discord_responses: list[httpx.Request],
+    discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
     monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", "111")

@@ -70,6 +70,10 @@ Notes:
   player tags are preserved.
 - A channel the bot cannot read fails the run with the channel name. No empty or partial
   file is written for it, so a capture is never silently incomplete.
+- `--verbose` logs each channel as it is captured, plus rate-limit and retry activity.
+- `DISCORD_API_BASE_URL` points the client somewhere other than `https://discord.com/api`.
+  Use it to exercise the command end to end against a local stub; it is not needed for a
+  real capture.
 
 ## Develop parsers from fixtures
 
