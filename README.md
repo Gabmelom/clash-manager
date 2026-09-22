@@ -1,5 +1,7 @@
 # ClashPerk Monthly Reporter
 
+[![CI](https://github.com/Gabmelom/clash-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Gabmelom/clash-manager/actions/workflows/ci.yml)
+
 A lightweight monthly Discord reporting job for Clash of Clans clan management.
 
 The project relies on **ClashPerk** to collect and aggregate Clash of Clans data. It does **not** query the Supercell API directly and does **not** run as a 24/7 Discord bot.
