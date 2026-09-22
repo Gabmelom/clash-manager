@@ -20,6 +20,27 @@ Example:
 
 Player name is mutable and must not be used as the primary key.
 
+### Deferred: name-only log attribution
+
+Most ClashPerk log families carry a display name and no player tag. Only per-player member
+events (join, leave, role, name change) and per-player capital logs include a tag, in the
+embed title `\u200e{name} ({tag})`.
+
+**Policy — table a general resolver until a real duplicate display name appears:**
+
+- Canonical identity remains `player_tag`. Display name is never the primary key.
+- When a resolver is built, the default path is an in-window index from those tag-bearing
+  logs. Do not call any external game API for the common case.
+- The Clash of Clans / Supercell API may be used **only** to disambiguate a known duplicate
+  display name that Discord logs cannot separate. It is not a data-collection source and
+  must not be called for every player, preemptively, or as a general identity layer.
+- Until that rare case is implemented, do not add a CoC API client. Unresolved or ambiguous
+  names are diagnostics (`null` / `None`), never an invented tag and never a silent zero.
+
+This is the decision, not a design. Collision handling (renames, reused names, map position)
+belongs with the deferred implementation. See `AGENTS.md`, "Known deferred decisions", and
+`.github/backlog/12-name-only-log-tag-attribution.md`.
+
 ## Normalized event types
 
 Suggested event models follow.

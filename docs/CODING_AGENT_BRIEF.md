@@ -6,7 +6,12 @@ Build a lightweight monthly Clash of Clans clan-management reporter using **Clas
 
 ## Hard constraints
 
-1. Do **not** call the Supercell / Clash of Clans API directly.
+1. Do **not** call the Supercell / Clash of Clans API for data collection. ClashPerk
+   Discord logs are the only game-data source. The **only** exception — deferred until a
+   real duplicate appears, and not to be built in the meantime — is using the CoC API to
+   disambiguate a **known duplicate display name** that Discord logs cannot separate.
+   Never call it preemptively, for every player, or as a general identity layer. See
+   `AGENTS.md`, "Known deferred decisions".
 2. Keep ClashPerk as the collector and source of game-data aggregation.
 3. Do **not** build an always-running Discord Gateway bot for V1.
 4. The process should wake once per month, read Discord history through the REST API, produce a report, post it, and exit.
@@ -142,7 +147,7 @@ This creates the foundation needed to capture real ClashPerk payloads before gue
 - no silent parser failures
 - no giant `main.py`
 - no premature database
-- no direct Clash API integration
+- no Clash of Clans API client except the deferred duplicate-name exception in `AGENTS.md`
 
 ## References
 

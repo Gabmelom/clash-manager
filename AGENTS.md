@@ -4,7 +4,8 @@ Shared instructions for humans and coding agents working on **clash-reporter**, 
 Clash of Clans clan report built on ClashPerk's Discord logs.
 
 Read `docs/CODING_AGENT_BRIEF.md` before writing code. It contains the hard constraints
-(no Supercell API, no Gateway bot, no database, player tag is the identity).
+(no Gateway bot, no database, player tag is the identity; no Clash of Clans API except the
+deferred duplicate-name case in **Known deferred decisions** below).
 
 ## Work is orchestrated through GitHub issues
 
@@ -106,6 +107,34 @@ Run `ruff check .`, `mypy`, and `pytest` before opening a pull request.
 - `None` means unknown, `0` means observed zero. Never substitute one for the other.
 - Never log `DISCORD_BOT_TOKEN`; never commit tokens or unsanitized payloads.
 - Scoring weights and thresholds belong in `clash_reporter.config`, not in call sites.
+
+## Known deferred decisions
+
+### Name-only ClashPerk logs — do not implement a name→tag resolver
+
+Most ClashPerk Discord logs identify a player by **display name only**. A player tag
+appears only in per-player member logs (join / leave / role / name) and per-player capital
+logs, in the embed title `\u200e{name} ({tag})`. War and CWL attacks, missed attacks,
+lineup changes, Clan Games, capital weekly summaries, and donations are name-only.
+
+Player tag remains the canonical identity. **Table full name→tag attribution until a real
+duplicate display name appears in a reporting window.** Until then, do not build a resolver
+or a Clash of Clans API client.
+
+When that work is un-deferred:
+
+1. **Default path:** resolve names from tag-bearing logs in the same reporting window
+   (members join/leave/role/name, per-player capital). Do not call any external game API
+   for the common case.
+2. **Clash of Clans / Supercell API is allowed only** when there is a **known duplicate
+   display name** that Discord logs cannot disambiguate. Never call it preemptively, for
+   every player, or as the primary identity source.
+3. **Do not** build a general CoC-API identity layer "in case" duplicates appear. Document
+   the collision risk and move on.
+4. Ambiguous or unresolvable names stay diagnostics (`None` ≠ zero). Never invent a tag.
+
+See `docs/DATA_CONTRACT.md` (Identity) and
+`.github/backlog/12-name-only-log-tag-attribution.md`.
 
 ## Cursor Cloud specific instructions
 
