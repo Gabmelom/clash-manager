@@ -14,6 +14,8 @@ from typing import Final
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from clash_reporter.discord_client import DEFAULT_BASE_URL
+
 #: ClashPerk data channels, in capture order. Names are configuration, not
 #: business logic: everything downstream addresses a channel by this name and
 #: resolves the ID through :class:`Settings`.
@@ -76,6 +78,9 @@ class Settings(BaseSettings):
     discord_cp_donations_channel_id: str | None = Field(default=None)
     discord_report_channel_id: str | None = Field(default=None)
     report_timezone: str = "America/Toronto"
+
+    #: Override only to point the client at a local stub instead of Discord.
+    discord_api_base_url: str = DEFAULT_BASE_URL
 
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
 

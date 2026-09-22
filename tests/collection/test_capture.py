@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -18,45 +18,23 @@ TOKEN = "not-a-real-token-abc123"  # noqa: S105 - dummy value for mocked transpo
 TORONTO = "America/Toronto"
 CAPTURED_AT = datetime(2026, 9, 1, 12, tzinfo=UTC)
 
-MEMBERS = [
-    {
-        "id": "200",
-        "channel_id": "111",
-        "guild_id": "900",
-        "timestamp": "2026-08-20T18:00:00+00:00",
-        "author": {"id": "700", "username": "ClashPerk", "bot": True},
-        "content": "<@800> joined",
-        "embeds": [
-            {
-                "title": "Member Joined",
-                "description": "Aurora (#R22YRC0UY)",
-                "fields": [{"name": "Tag", "value": "#R22YRC0UY"}],
-            }
+MEMBERS_CHANNEL = "400000000000000001"
+WARS_CHANNEL = "400000000000000002"
+
+
+@pytest.fixture
+def clashperk_history(
+    clashperk_message: Callable[[str], dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """One page of real ClashPerk history per channel, newest first."""
+    return {
+        MEMBERS_CHANNEL: [
+            clashperk_message("members/name-change.json"),  # 2026-08-22
+            clashperk_message("members/leave.json"),  # 2026-08-19
+            clashperk_message("members/join.json"),  # 2026-08-03
         ],
-        "mentions": [{"id": "800", "username": "gabriel"}],
-    },
-    {
-        "id": "100",
-        "channel_id": "111",
-        "guild_id": "900",
-        "timestamp": "2026-08-02T18:00:00+00:00",
-        "author": {"id": "700", "username": "ClashPerk", "bot": True},
-        "content": "Aurora (#R22YRC0UY) left",
-        "embeds": [],
-        "mentions": [],
-    },
-]
-WARS = [
-    {
-        "id": "300",
-        "channel_id": "222",
-        "guild_id": "900",
-        "timestamp": "2026-08-11T09:00:00+00:00",
-        "author": {"id": "700", "username": "ClashPerk", "bot": True},
-        "content": "#R22YRC0UY 3 stars",
-        "embeds": [],
+        WARS_CHANNEL: [clashperk_message("wars/attack.json")],
     }
-]
 
 
 def transport_for(pages: Mapping[str, list[list[dict[str, Any]]]]) -> httpx.MockTransport:
@@ -79,26 +57,41 @@ def client_for(transport: httpx.MockTransport) -> DiscordClient:
     return DiscordClient(TOKEN, transport=transport, sleep=lambda seconds: None)
 
 
-def default_transport() -> httpx.MockTransport:
-    return transport_for({"111": [MEMBERS], "222": [WARS]})
+@pytest.fixture
+def capture(
+    clashperk_history: dict[str, list[dict[str, Any]]],
+) -> Callable[..., Any]:
+    """Run a capture of the ClashPerk fixture channels into a directory."""
 
-
-def capture(tmp_path: Path, **kwargs: Any) -> Any:
-    window = kwargs.pop("window", None) or resolve_month("2026-08", timezone=TORONTO)
-    transport = kwargs.pop("transport", None) or default_transport()
-    channels = kwargs.pop("channels", None) or {"cp-members": "111", "cp-wars": "222"}
-    kwargs.setdefault("captured_at", CAPTURED_AT)
-    with client_for(transport) as client:
-        return capture_channels(
-            client,
-            channels=channels,
-            window=window,
-            output_dir=tmp_path,
-            **kwargs,
+    def run(output_dir: Path, **kwargs: Any) -> Any:
+        window = kwargs.pop("window", None) or resolve_month("2026-08", timezone=TORONTO)
+        transport = kwargs.pop("transport", None) or transport_for(
+            {channel: [messages] for channel, messages in clashperk_history.items()}
         )
+        channels = kwargs.pop("channels", None) or {
+            "cp-members": MEMBERS_CHANNEL,
+            "cp-wars": WARS_CHANNEL,
+        }
+        kwargs.setdefault("captured_at", CAPTURED_AT)
+        with client_for(transport) as client:
+            return capture_channels(
+                client,
+                channels=channels,
+                window=window,
+                output_dir=output_dir,
+                **kwargs,
+            )
+
+    return run
 
 
-def test_writes_one_file_per_channel_plus_a_manifest(tmp_path: Path) -> None:
+def read(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_writes_one_file_per_channel_plus_a_manifest(
+    capture: Callable[..., Any], tmp_path: Path
+) -> None:
     run = capture(tmp_path)
 
     assert sorted(path.name for path in tmp_path.iterdir()) == [
@@ -107,24 +100,51 @@ def test_writes_one_file_per_channel_plus_a_manifest(tmp_path: Path) -> None:
         "manifest.json",
     ]
     assert [channel.name for channel in run.channels] == ["cp-members", "cp-wars"]
-    assert run.message_count == 3
+    assert run.message_count == 4
     assert run.manifest_path == tmp_path / MANIFEST_FILENAME
 
 
-def test_messages_are_written_in_chronological_order(tmp_path: Path) -> None:
+def test_messages_are_written_in_chronological_order(
+    capture: Callable[..., Any], tmp_path: Path
+) -> None:
     capture(tmp_path)
-    written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    assert [message["id"] for message in written] == ["100", "200"]
+    written = read(tmp_path / "cp-members.json")
+    assert [message["timestamp"] for message in written] == [
+        "2026-08-03T18:12:44.281000+00:00",
+        "2026-08-19T02:41:09.553000+00:00",
+        "2026-08-22T09:33:51.902000+00:00",
+    ]
 
 
-def test_output_round_trips_to_the_same_message_objects(tmp_path: Path) -> None:
+def test_output_round_trips_to_the_same_message_objects(
+    capture: Callable[..., Any],
+    clashperk_history: dict[str, list[dict[str, Any]]],
+    tmp_path: Path,
+) -> None:
     capture(tmp_path)
-    written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    assert written == sorted(MEMBERS, key=lambda message: message["timestamp"])
-    assert json.loads((tmp_path / "cp-wars.json").read_text(encoding="utf-8")) == WARS
+    written = read(tmp_path / "cp-members.json")
+    assert written == list(reversed(clashperk_history[MEMBERS_CHANNEL]))
+    assert read(tmp_path / "cp-wars.json") == clashperk_history[WARS_CHANNEL]
 
 
-def test_output_is_byte_identical_for_the_same_input(tmp_path: Path) -> None:
+def test_clashperk_payload_details_survive_the_capture(
+    capture: Callable[..., Any], tmp_path: Path
+) -> None:
+    capture(tmp_path)
+    join = read(tmp_path / "cp-members.json")[0]
+    attack = read(tmp_path / "cp-wars.json")[0]
+
+    assert join["embeds"][0]["title"] == "\u200eAurora (#2Y0LRPV8Q)"
+    assert join["embeds"][0]["footer"]["text"] == "Joined Maple Legends [43/50]"
+    assert join["components"][0]["components"][0]["label"] == "View Profile"
+    # War attacks are plain content, not embeds, and name-only.
+    assert attack["embeds"] == []
+    assert "Aurora" in attack["content"]
+
+
+def test_output_is_byte_identical_for_the_same_input(
+    capture: Callable[..., Any], tmp_path: Path
+) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
     capture(first)
@@ -133,9 +153,11 @@ def test_output_is_byte_identical_for_the_same_input(tmp_path: Path) -> None:
     assert (first / "manifest.json").read_bytes() == (second / "manifest.json").read_bytes()
 
 
-def test_manifest_records_window_counts_and_api_version(tmp_path: Path) -> None:
+def test_manifest_records_window_counts_and_api_version(
+    capture: Callable[..., Any], tmp_path: Path
+) -> None:
     run = capture(tmp_path)
-    manifest = json.loads(run.manifest_path.read_text(encoding="utf-8"))
+    manifest = read(run.manifest_path)
 
     assert manifest["captured_at"] == "2026-09-01T12:00:00+00:00"
     assert manifest["api_version"] == 10
@@ -145,46 +167,57 @@ def test_manifest_records_window_counts_and_api_version(tmp_path: Path) -> None:
     assert manifest["window"]["start_utc"] == "2026-08-01T04:00:00+00:00"
     assert manifest["window"]["complete"] is True
     assert manifest["channels"] == [
-        {"channel_id": "111", "file": "cp-members.json", "message_count": 2, "name": "cp-members"},
-        {"channel_id": "222", "file": "cp-wars.json", "message_count": 1, "name": "cp-wars"},
-    ]
-
-
-def test_partial_current_month_capture_is_recorded_as_incomplete(tmp_path: Path) -> None:
-    window = resolve_month("current", timezone=TORONTO, now=datetime(2026, 9, 4, tzinfo=UTC))
-    partial = [
         {
-            "id": "400",
-            "channel_id": "111",
-            "timestamp": "2026-09-02T10:00:00+00:00",
-            "content": "#R22YRC0UY joined",
-        }
+            "channel_id": MEMBERS_CHANNEL,
+            "file": "cp-members.json",
+            "message_count": 3,
+            "name": "cp-members",
+        },
+        {
+            "channel_id": WARS_CHANNEL,
+            "file": "cp-wars.json",
+            "message_count": 1,
+            "name": "cp-wars",
+        },
     ]
+
+
+def test_partial_current_month_capture_is_recorded_as_incomplete(
+    capture: Callable[..., Any],
+    clashperk_message: Callable[[str], dict[str, Any]],
+    repost: Callable[..., dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 9, 4, tzinfo=UTC)
+    window = resolve_month("current", timezone=TORONTO, now=now)
+    partial = [repost(clashperk_message("members/join.json"), datetime(2026, 9, 2, 10, tzinfo=UTC))]
     run = capture(
         tmp_path,
         window=window,
-        channels={"cp-members": "111"},
-        transport=transport_for({"111": [partial]}),
-        captured_at=datetime(2026, 9, 4, tzinfo=UTC),
+        channels={"cp-members": MEMBERS_CHANNEL},
+        transport=transport_for({MEMBERS_CHANNEL: [partial]}),
+        captured_at=now,
     )
 
-    manifest = json.loads(run.manifest_path.read_text(encoding="utf-8"))
+    manifest = read(run.manifest_path)
     assert manifest["window"]["month_key"] == "2026-09"
     assert manifest["window"]["complete"] is False
     assert run.message_count == 1
 
 
-def test_a_forbidden_channel_fails_the_run_and_leaves_no_file(tmp_path: Path) -> None:
+def test_a_forbidden_channel_fails_the_run_and_leaves_no_file(
+    clashperk_history: dict[str, list[dict[str, Any]]], tmp_path: Path
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if "/channels/222/" in request.url.path:
+        if f"/channels/{WARS_CHANNEL}/" in request.url.path:
             return httpx.Response(403, json={"message": "Missing Access"})
-        return httpx.Response(200, json=MEMBERS)
+        return httpx.Response(200, json=clashperk_history[MEMBERS_CHANNEL])
 
     with client_for(httpx.MockTransport(handler)) as client:
         with pytest.raises(ChannelCaptureError) as excinfo:
             capture_channels(
                 client,
-                channels={"cp-members": "111", "cp-wars": "222"},
+                channels={"cp-members": MEMBERS_CHANNEL, "cp-wars": WARS_CHANNEL},
                 window=resolve_month("2026-08", timezone=TORONTO),
                 output_dir=tmp_path,
                 captured_at=CAPTURED_AT,
@@ -193,15 +226,18 @@ def test_a_forbidden_channel_fails_the_run_and_leaves_no_file(tmp_path: Path) ->
     error = excinfo.value
     assert error.channel_name == "cp-wars"
     assert "cp-wars" in str(error)
-    assert "222" in str(error)
+    assert WARS_CHANNEL in str(error)
     assert TOKEN not in str(error)
     assert not (tmp_path / "cp-wars.json").exists()
     assert not (tmp_path / MANIFEST_FILENAME).exists()
     assert not list(tmp_path.glob(".*.tmp"))
 
 
-def test_capture_requires_at_least_one_channel(tmp_path: Path) -> None:
-    with client_for(default_transport()) as client:
+def test_capture_requires_at_least_one_channel(
+    clashperk_history: dict[str, list[dict[str, Any]]], tmp_path: Path
+) -> None:
+    transport = transport_for({channel: [page] for channel, page in clashperk_history.items()})
+    with client_for(transport) as client:
         with pytest.raises(ValueError, match="No channels"):
             capture_channels(
                 client,
@@ -212,35 +248,34 @@ def test_capture_requires_at_least_one_channel(tmp_path: Path) -> None:
 
 
 def test_sanitize_pseudonymizes_ids_consistently_and_keeps_payload_structure(
+    capture: Callable[..., Any],
+    clashperk_history: dict[str, list[dict[str, Any]]],
     tmp_path: Path,
 ) -> None:
     run = capture(tmp_path, sanitize=True)
 
-    members = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    wars = json.loads((tmp_path / "cp-wars.json").read_text(encoding="utf-8"))
-    join = members[1]
+    members = read(tmp_path / "cp-members.json")
+    join, leave = members[0], members[1]
+    original_join = clashperk_history[MEMBERS_CHANNEL][-1]
 
-    # Message IDs, timestamps, embeds, and player tags survive untouched.
-    assert [message["id"] for message in members] == ["100", "200"]
-    assert join["timestamp"] == "2026-08-20T18:00:00+00:00"
-    assert join["embeds"] == MEMBERS[0]["embeds"]
-    assert "#R22YRC0UY" in json.dumps(members)
+    # Message IDs, timestamps, embeds, components, and player tags survive untouched.
+    assert join["id"] == original_join["id"]
+    assert join["timestamp"] == original_join["timestamp"]
+    assert join["embeds"] == original_join["embeds"]
+    assert join["components"] == original_join["components"]
+    assert "#2Y0LRPV8Q" in json.dumps(members)
 
-    # Guild and user IDs are replaced, and the same source ID maps to the same
-    # replacement everywhere, including across channels and inside content.
-    assert join["guild_id"] != "900"
-    assert join["author"]["id"] != "700"
+    # The webhook identity is replaced, and ClashPerk posts through a webhook, so the
+    # author ID and the webhook ID are the same snowflake and must stay equal.
+    assert join["webhook_id"] != original_join["webhook_id"]
+    assert join["author"]["id"] == join["webhook_id"]
+    assert leave["author"]["id"] == join["author"]["id"]
     assert join["author"]["username"] == "ClashPerk"
-    assert members[0]["author"]["id"] == join["author"]["id"]
-    assert wars[0]["author"]["id"] == join["author"]["id"]
-    assert wars[0]["guild_id"] == join["guild_id"]
-    assert join["content"] == f"<@{join['mentions'][0]['id']}> joined"
-    assert "800" not in join["content"]
 
-    assert json.loads(run.manifest_path.read_text(encoding="utf-8"))["sanitized"] is True
+    assert read(run.manifest_path)["sanitized"] is True
 
 
-def test_sanitize_is_deterministic_across_runs(tmp_path: Path) -> None:
+def test_sanitize_is_deterministic_across_runs(capture: Callable[..., Any], tmp_path: Path) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
     capture(first, sanitize=True)
@@ -248,8 +283,12 @@ def test_sanitize_is_deterministic_across_runs(tmp_path: Path) -> None:
     assert (first / "cp-members.json").read_bytes() == (second / "cp-members.json").read_bytes()
 
 
-def test_unsanitized_capture_preserves_original_ids(tmp_path: Path) -> None:
+def test_unsanitized_capture_preserves_original_ids(
+    capture: Callable[..., Any],
+    clashperk_history: dict[str, list[dict[str, Any]]],
+    tmp_path: Path,
+) -> None:
     capture(tmp_path)
-    members = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
-    assert members[1]["guild_id"] == "900"
-    assert members[1]["author"]["id"] == "700"
+    join = read(tmp_path / "cp-members.json")[0]
+    assert join["webhook_id"] == clashperk_history[MEMBERS_CHANNEL][-1]["webhook_id"]
+    assert join["author"]["id"] == clashperk_history[MEMBERS_CHANNEL][-1]["author"]["id"]

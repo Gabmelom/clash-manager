@@ -17,6 +17,7 @@ own modules.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -76,7 +77,7 @@ def _cmd_fetch(args: argparse.Namespace) -> int:
         f"Fetching {window.month_label} ({window.month_key}) in {window.timezone}"
         + ("" if window.is_complete() else " - month still in progress, capture is partial")
     )
-    with DiscordClient(token) as client:
+    with DiscordClient(token, base_url=settings.discord_api_base_url) as client:
         try:
             run = capture_channels(
                 client,
@@ -149,13 +150,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Pseudonymize guild and Discord user IDs consistently across the capture.",
     )
+    fetch.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Log each channel as it is captured, plus rate-limit and retry activity.",
+    )
     fetch.set_defaults(func=_cmd_fetch)
+
+    parser.set_defaults(verbose=False)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="%(levelname)s %(name)s %(message)s",
+        stream=sys.stderr,
+    )
     return int(args.func(args))
 
 

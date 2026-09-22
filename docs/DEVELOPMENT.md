@@ -70,17 +70,66 @@ Notes:
   player tags are preserved.
 - A channel the bot cannot read fails the run with the channel name. No empty or partial
   file is written for it, so a capture is never silently incomplete.
+- `--verbose` logs each channel as it is captured, plus rate-limit and retry activity.
+- `DISCORD_API_BASE_URL` points the client somewhere other than `https://discord.com/api`.
+  Use it to exercise the command end to end against a local stub; it is not needed for a
+  real capture.
+
+## ClashPerk's source is the payload reference
+
+ClashPerk is open source, and its log builders are the authoritative description of what
+lands in the data channels. Read them instead of waiting for a month of live messages to
+accumulate, and instead of guessing from screenshots:
+[clashperk/clashperk](https://github.com/clashperk/clashperk).
+
+| Log family | Source |
+| --- | --- |
+| member join / leave / role / name change, capital contribution and raid | `src/core/clan-log.ts` |
+| regular war attacks, missed attacks, war embed | `src/core/clan-war-log.ts` |
+| CWL attacks, missed attacks, lineup changes, round embeds | `src/core/clan-war-log.ts` (the `warTag` branches) |
+| capital weekly summary | `src/core/capital-log.ts` |
+| Clan Games leaderboard | `src/core/clan-games-log.ts` and `src/helper/clan-games.helper.ts` |
+| donations | `src/core/donation-log.ts` |
+| `/export season`, `/export wars` columns for phase 6 validation | `src/commands/export/export-season.ts`, `export-wars.ts` |
+
+Emoji IDs, embed colors, and role names live in `src/util/emojis.ts` and
+`src/util/constants.ts`.
+
+Facts worth knowing before writing a parser, all of them read out of those files:
+
+- Every log is posted through a **webhook**, so messages carry `webhook_id` and an
+  `author.id` that is the same snowflake. The REST message object has no `guild_id`.
+- The war and CWL **attack logs are plain `content`, not embeds**.
+- Most log families identify players by **name only**. A player tag appears only in the
+  per-player member and capital logs, whose embed title is `\u200e{name} ({tag})`. War
+  attacks, missed attacks, lineup changes, Clan Games, capital summaries, and donations
+  carry no tag at all, which matters because the player tag is this project's canonical
+  identity.
+- Clan Games and war embeds are **edited in place**. The payload holds the final state and
+  `edited_timestamp` is set, so the creation timestamp is not when the data was produced.
 
 ## Develop parsers from fixtures
 
 Before implementing a parser:
 
-1. fetch a real Discord message payload
-2. save it under `tests/fixtures/<log-type>/`
-3. remove secrets if necessary
-4. write the failing parser test
-5. implement only enough parsing to satisfy the fixture
-6. add edge-case fixtures as new formats appear
+1. read the ClashPerk builder for that log family
+2. use the committed fixture for it, or capture a real payload with `clash-reporter fetch`
+3. save it under `tests/fixtures/<log-type>/`
+4. remove secrets if necessary
+5. write the failing parser test
+6. implement only enough parsing to satisfy the fixture
+7. add edge-case fixtures as new formats appear
+
+### The committed fixture corpus
+
+`tests/fixtures/` already holds one message per log family, synthesized from the ClashPerk
+builders above with sanitized IDs and invented clan/player identities. They exist so parser
+work can start with no Discord access at all. `tests/fixtures/README.md` records which
+builder each file came from and which ClashPerk commit was transcribed.
+
+Treat them as a starting point, not as ground truth: when a real capture disagrees with a
+synthetic fixture, the real capture wins, and the difference is worth recording on the
+issue.
 
 ### Promote a captured file into `tests/fixtures/`
 
@@ -114,10 +163,11 @@ pins down one ClashPerk message format.
 
 `artifacts/` is ignored by git; only files promoted into `tests/fixtures/` are committed.
 
-Suggested fixture structure:
+Fixture structure:
 
 ```text
 tests/fixtures/
+  README.md              # provenance: which ClashPerk builder each file came from
   members/
     join.json
     leave.json
@@ -137,7 +187,15 @@ tests/fixtures/
     weekly-summary.json
   clan-games/
     final-leaderboard.json
+  donations/
+    monthly-summary.json
+  normalized/
+    monthly_players.sample.json
 ```
+
+Tests reach these through the `clashperk_message`, `repost`, and `history_page` fixtures in
+`tests/conftest.py`, so a mocked transport serves real payload shapes rather than invented
+ones.
 
 ## Tests
 

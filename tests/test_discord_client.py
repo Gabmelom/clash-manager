@@ -20,14 +20,17 @@ from clash_reporter.discord_client import (
 
 TOKEN = "not-a-real-token-abc123"  # noqa: S105 - dummy value for mocked transports
 
+Page = Callable[..., list[dict[str, Any]]]
 
-def make_message(index: int, moment: datetime) -> dict[str, Any]:
-    return {
-        "id": str(1000 + index),
-        "channel_id": "555",
-        "timestamp": moment.isoformat(),
-        "content": f"message {index}",
-    }
+
+@pytest.fixture
+def page(history_page: Page) -> Page:
+    """Newest-first pages of real ClashPerk war-attack messages at given timestamps."""
+
+    def build(*timestamps: datetime) -> list[dict[str, Any]]:
+        return history_page("wars/attack.json", *timestamps)
+
+    return build
 
 
 def build_client(
@@ -80,20 +83,22 @@ def test_before_and_after_cursors_are_forwarded() -> None:
     assert seen[0].url.params["after"] == "7"
 
 
-def test_history_walks_three_pages_and_stops_at_the_boundary() -> None:
+def test_messages_are_returned_unmodified(clashperk_message: Callable[[str], Any]) -> None:
+    attack = clashperk_message("wars/attack.json")
+
+    with build_client(lambda request: httpx.Response(200, json=[attack])) as client:
+        assert client.get_channel_messages("555") == [attack]
+
+
+def test_history_walks_three_pages_and_stops_at_the_boundary(page: Page) -> None:
     start = datetime(2026, 8, 1, tzinfo=UTC)
-    # Newest first: 5 in-window messages, then older history that must not be drained.
+    newest = datetime(2026, 8, 20, tzinfo=UTC)
     pages = [
-        [make_message(i, datetime(2026, 8, 20, tzinfo=UTC) - timedelta(days=i)) for i in range(2)],
-        [
-            make_message(i, datetime(2026, 8, 20, tzinfo=UTC) - timedelta(days=i))
-            for i in range(2, 4)
-        ],
-        [
-            make_message(4, datetime(2026, 8, 2, tzinfo=UTC)),
-            make_message(5, datetime(2026, 7, 31, tzinfo=UTC)),
-        ],
-        [make_message(i, datetime(2026, 7, 1, tzinfo=UTC)) for i in range(6, 8)],
+        page(newest, newest - timedelta(days=1)),
+        page(newest - timedelta(days=2), newest - timedelta(days=3)),
+        # The second message crosses the window start; older history must not be drained.
+        page(datetime(2026, 8, 2, tzinfo=UTC), datetime(2026, 7, 31, tzinfo=UTC)),
+        page(datetime(2026, 7, 1, tzinfo=UTC), datetime(2026, 6, 30, tzinfo=UTC)),
     ]
     requests: list[httpx.Request] = []
 
@@ -104,10 +109,11 @@ def test_history_walks_three_pages_and_stops_at_the_boundary() -> None:
     with build_client(handler) as client:
         collected = list(client.iter_channel_history("555", until=start, page_size=2))
 
-    assert [message["id"] for message in collected] == ["1000", "1001", "1002", "1003", "1004"]
+    expected = [*pages[0], *pages[1], pages[2][0]]
+    assert [message["id"] for message in collected] == [m["id"] for m in expected]
     assert len(requests) == 3, "pagination must stop instead of draining the channel"
-    assert requests[1].url.params["before"] == "1001"
-    assert requests[2].url.params["before"] == "1003"
+    assert requests[1].url.params["before"] == pages[0][-1]["id"]
+    assert requests[2].url.params["before"] == pages[1][-1]["id"]
 
 
 def test_history_can_be_seeded_with_a_before_cursor() -> None:
@@ -123,14 +129,14 @@ def test_history_can_be_seeded_with_a_before_cursor() -> None:
     assert requests[0].url.params["before"] == "42"
 
 
-def test_history_stops_on_a_short_page() -> None:
-    page = [make_message(0, datetime(2026, 8, 20, tzinfo=UTC))]
+def test_history_stops_on_a_short_page(page: Page) -> None:
+    only = page(datetime(2026, 8, 20, tzinfo=UTC))
     calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json=page if calls == 1 else [])
+        return httpx.Response(200, json=only if calls == 1 else [])
 
     with build_client(handler) as client:
         collected = list(client.iter_channel_history("555", until=datetime(2026, 8, 1, tzinfo=UTC)))
@@ -139,7 +145,7 @@ def test_history_stops_on_a_short_page() -> None:
     assert calls == 1
 
 
-def test_rate_limit_is_retried_once_using_the_retry_after_header() -> None:
+def test_rate_limit_is_retried_once_using_the_retry_after_header(page: Page) -> None:
     sleeps: list[float] = []
     calls = 0
 
@@ -152,7 +158,7 @@ def test_rate_limit_is_retried_once_using_the_retry_after_header() -> None:
                 headers={"Retry-After": "0.75", "X-RateLimit-Reset-After": "0.9"},
                 json={"message": "You are being rate limited.", "retry_after": 0.75},
             )
-        return httpx.Response(200, json=[make_message(0, datetime(2026, 8, 5, tzinfo=UTC))])
+        return httpx.Response(200, json=page(datetime(2026, 8, 5, tzinfo=UTC)))
 
     with build_client(handler, sleeps=sleeps) as client:
         messages = client.get_channel_messages("555")
@@ -287,10 +293,11 @@ def test_unexpected_payload_shape_is_reported() -> None:
             client.get_channel_messages("555")
 
 
-def test_message_timestamp_requires_a_timestamp_field() -> None:
-    assert message_timestamp(make_message(0, datetime(2026, 8, 5, tzinfo=UTC))) == datetime(
-        2026, 8, 5, tzinfo=UTC
-    )
+def test_message_timestamp_reads_the_discord_timestamp(
+    clashperk_message: Callable[[str], Any],
+) -> None:
+    joined = clashperk_message("members/join.json")
+    assert message_timestamp(joined) == datetime(2026, 8, 3, 18, 12, 44, 281000, tzinfo=UTC)
     with pytest.raises(DiscordError, match="no timestamp"):
         message_timestamp({"id": "1"})
 

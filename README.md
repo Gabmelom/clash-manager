@@ -168,6 +168,12 @@ DISCORD_REPORT_CHANNEL_ID=
 REPORT_TIMEZONE=America/Toronto
 ```
 
+Optional:
+
+```text
+DISCORD_API_BASE_URL=   # defaults to https://discord.com/api; override for a local stub
+```
+
 Do not commit bot tokens or secrets.
 
 ## Discord permissions
@@ -225,6 +231,12 @@ clash-reporter fetch --month previous --channel cp-wars --sanitize
 Each run writes one file per channel plus a `manifest.json` recording the channel IDs, window, message counts, capture time, and Discord API version. Output is deterministic (sorted keys, chronological order), so re-capturing the same messages produces byte-identical files. A channel the bot cannot read fails the run with the channel name and leaves no file behind for it.
 
 Requires `DISCORD_BOT_TOKEN` and at least one `DISCORD_CP_*_CHANNEL_ID`. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
+
+## Expected ClashPerk payloads
+
+ClashPerk is open source, so the exact shape of every log message can be read from its log builders in [clashperk/clashperk](https://github.com/clashperk/clashperk) (`src/core/clan-log.ts`, `clan-war-log.ts`, `capital-log.ts`, `clan-games-log.ts`, `donation-log.ts`). Parser work does not have to wait for a month of live Discord history.
+
+`tests/fixtures/` already contains one message per log family, synthesized from those builders with sanitized IDs; [`tests/fixtures/README.md`](tests/fixtures/README.md) records the provenance of each file. A real capture always wins over a synthetic fixture where the two disagree. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), "ClashPerk's source is the payload reference".
 
 ## Documentation
 
