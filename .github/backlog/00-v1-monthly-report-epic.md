@@ -54,7 +54,8 @@ clashperk-channel-setup (human)
                                         post-report-to-discord ── monthly-scheduled-workflow
 ```
 
-`ci-workflow` is independent and can land at any time.
+`name-only-log-tag-attribution` is deferred until a real duplicate display name appears;
+it is not on the critical path. `ci-workflow` is independent and can land at any time.
 
 ## Tracked issues
 
@@ -65,7 +66,7 @@ clashperk-channel-setup (human)
 - [ ] {{issue:parser-framework-members}} - parser framework, diagnostics, members parser
 - [ ] {{issue:war-cwl-parsers}} - regular war and CWL parsers
 - [ ] {{issue:games-capital-donations-parsers}} - Clan Games, Capital, donations parsers
-- [ ] {{issue:name-only-log-tag-attribution}} - resolve name-only logs to player tags
+- [ ] {{issue:name-only-log-tag-attribution}} - name-only log → tag attribution (deferred)
 - [ ] {{issue:monthly-aggregation}} - monthly aggregation and `normalize`
 - [ ] {{issue:post-report-to-discord}} - post the report to `#clan-reports`
 - [ ] {{issue:ci-workflow}} - CI on pull requests
@@ -80,7 +81,8 @@ clashperk-channel-setup (human)
 - [ ] Report values were compared against ClashPerk `/export season` and `/export wars` for
       the same month, and every remaining difference is explained in a comment on this issue
       (`ROADMAP.md` phase 6).
-- [ ] No Supercell API calls, no Gateway connection, no database.
+- [ ] No Clash of Clans API except the deferred duplicate-name exception in `AGENTS.md`;
+      no Gateway connection; no database.
 
 ## References
 
