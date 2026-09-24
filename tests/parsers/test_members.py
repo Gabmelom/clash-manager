@@ -84,6 +84,7 @@ def test_role_change_fixture_old_role_is_unknown(clashperk_message: Message) -> 
     event = outcome.events[0]
     assert isinstance(event, PlayerRoleChanged)
     assert event.player_tag == "#9YLG2PJRQ"
+    assert event.player_name == "Cascade"
     assert event.new_role == "Elder"
     assert event.old_role is None
 

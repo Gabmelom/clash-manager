@@ -35,6 +35,7 @@ The CLI shape can evolve, but aim for commands similar to:
 ```text
 python -m clash_reporter fetch --month 2026-08 --output ./artifacts/raw
 python -m clash_reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
+python -m clash_reporter report --input ./artifacts/normalized/monthly_players.json --dry-run
 python -m clash_reporter report --month 2026-08 --dry-run
 python -m clash_reporter report --month previous --post
 ```
@@ -74,6 +75,36 @@ Notes:
 - `DISCORD_API_BASE_URL` points the client somewhere other than `https://discord.com/api`.
   Use it to exercise the command end to end against a local stub; it is not needed for a
   real capture.
+
+## Members-only `normalize` (partial #11)
+
+`clash-reporter normalize` is the local path from a Discord `fetch` directory to
+`report --dry-run`. It is **not** the full aggregation issue: only `#cp-members` is parsed.
+
+```bash
+clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
+clash-reporter report --input ./artifacts/normalized/monthly_players.json --dry-run
+```
+
+What it does:
+
+- Reads `cp-members.json` (same layout `fetch` writes) and optional `manifest.json` for the month.
+- Parses join / leave / role / name events, de-duplicates by Discord message ID.
+- Reconstructs membership intervals and `eligible_days` in `REPORT_TIMEZONE`.
+- Writes `events.json`, `monthly_players.json`, and `diagnostics/parser_warnings.json`.
+
+What it deliberately does not do:
+
+- War, CWL, Clan Games, capital, and donation parsers are not wired. Those per-player
+  fields stay `None` (missing). Dataset war counts are `0` only because nothing was parsed,
+  not because a war month was observed to be empty. `report --dry-run` must not flag anyone
+  for review solely from that gap.
+- Name→tag attribution and the Clash of Clans API stay deferred (`AGENTS.md`).
+
+`--month` is optional when the fetch manifest is present. Pass `--month YYYY-MM` to
+override it, or when normalizing a directory that has `cp-members.json` but no manifest.
+
+Full aggregation (issue #11) starts from this slice once the other log-family parsers land.
 
 ## ClashPerk's source is the payload reference
 
@@ -219,9 +250,12 @@ Verify:
 - leave then rejoin
 - name change
 - duplicate messages
-- regular war vs CWL separation
-- month boundary war
-- no wars in a month
+- `eligible_days` in `REPORT_TIMEZONE`, not UTC
+- a player present the whole window with no join event
+- members-only month does not flag review for missing wars
+- regular war vs CWL separation (deferred until those parsers land)
+- month boundary war (deferred)
+- no wars in a month (deferred beyond leaving war metrics missing)
 - zero Clan Games points vs missing Clan Games data
 
 ### Scoring tests
