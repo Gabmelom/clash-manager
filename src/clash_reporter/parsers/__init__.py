@@ -6,6 +6,7 @@ here, and no name→tag resolver (see ``AGENTS.md``, Known deferred decisions).
 """
 
 from clash_reporter.parsers.base import (
+    DomainEvent,
     IgnoredMessage,
     ParseOutcome,
     Parser,
@@ -16,6 +17,7 @@ from clash_reporter.parsers.base import (
 from clash_reporter.parsers.members import MembersParser
 
 __all__ = [
+    "DomainEvent",
     "IgnoredMessage",
     "MembersParser",
     "ParseOutcome",

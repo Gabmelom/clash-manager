@@ -19,6 +19,7 @@ from clash_reporter.events import (
 )
 
 __all__ = [
+    "DomainEvent",
     "IGNORED_MALFORMED",
     "IGNORED_MISSING_PLAYER_TAG",
     "IGNORED_UNKNOWN_LAYOUT",
@@ -44,6 +45,8 @@ IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
 
+# Closed to membership events in this PR. Widen the union (and ``__all__``)
+# when war, CWL, games, or capital parsers start emitting their own types.
 type DomainEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged
 
 

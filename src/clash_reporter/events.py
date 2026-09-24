@@ -45,8 +45,11 @@ class _EventBase(BaseModel):
 
     @property
     def event_key(self) -> str:
-        # Same shape as ``clash_reporter.parsers.base.make_event_key``. One
-        # members message yields one event, so the index is always 0.
+        # Same shape as ``clash_reporter.parsers.base.make_event_key``. Members
+        # logs are one event per message, so the index is always 0. Parsers that
+        # emit several rows from one Discord message (missed attacks, Clan Games
+        # leaderboard) must call ``make_event_key(..., index=)`` instead of
+        # relying on this property.
         return f"{self.source.message_id}:{self.event_type}:{self.player_tag}:0"
 
 
