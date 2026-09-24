@@ -3,7 +3,7 @@
 These mirror ``docs/DATA_CONTRACT.md``. Player tag is the canonical identity and
 missing data is represented as ``None`` (not ``0``). Only the aggregate models
 needed to render a monthly report from normalized fixtures are implemented here;
-per-event parser models are added as real ClashPerk fixtures are captured.
+per-event parser models live in :mod:`clash_reporter.events`.
 """
 
 from __future__ import annotations
