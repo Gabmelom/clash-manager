@@ -160,9 +160,12 @@ def test_normalize_writes_dataset_events_and_diagnostics(
     }
 
     diagnostics = json.loads(result.diagnostics_path.read_text(encoding="utf-8"))
-    assert diagnostics["members_only"] is True
-    assert "wars" in diagnostics["unused_channels"]
-    assert any("not wired" in note for note in dataset.data_notes)
+    assert diagnostics["members_only"] is False
+    assert diagnostics["unused_channels"] == []
+    assert "wars" in diagnostics["parsed_channels"]
+    assert aurora.regular_war.attacks_used == 1
+    assert not any("not wired" in note for note in dataset.data_notes)
+    assert any("clan-games.json is missing" in note for note in dataset.data_notes)
 
 
 def test_normalize_output_is_deterministic(clashperk_message: Message, tmp_path: Path) -> None:
@@ -228,6 +231,116 @@ def test_normalize_missing_members_file_fails_closed(
     )
     assert exit_code == 2
     assert "members.json" in capsys.readouterr().err
+
+
+def test_members_only_capture_leaves_activity_unknown(
+    clashperk_message: Message, tmp_path: Path
+) -> None:
+    raw = write_raw_capture(tmp_path / "raw", _sample_messages(clashperk_message))
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST)
+    assert result.dataset.regular_wars == 0
+    assert result.dataset.cwl_rounds == 0
+    assert result.dataset.clan_games_completed is False
+    assert result.dataset.raid_weekends == 0
+    for player in result.dataset.players:
+        assert player.regular_war.attacks_used is None
+        assert player.cwl.attacks_used is None
+        assert player.clan_games.points is None
+        assert player.capital.contribution is None
+        assert player.donations.donated is None
+    notes = " ".join(result.dataset.data_notes)
+    assert "not wired" not in notes
+    assert "wars.json is missing" in notes
+    diagnostics = json.loads(result.diagnostics_path.read_text(encoding="utf-8"))
+    assert diagnostics["members_only"] is True
+    assert "wars" in diagnostics["missing_channels"]
+
+
+def test_multi_channel_normalize_fills_activity_metrics(
+    clashperk_message: Message, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    raw = write_raw_capture(
+        tmp_path / "raw",
+        _sample_messages(clashperk_message),
+        extra_channels={
+            "wars": [
+                clashperk_message("wars/embed-final.json"),
+                clashperk_message("wars/attack.json"),
+                clashperk_message("wars/missed-attacks.json"),
+                clashperk_message("wars/unknown-layout.json"),
+            ],
+            "cwl": [
+                clashperk_message("cwl/embed-round.json"),
+                clashperk_message("cwl/attack.json"),
+                clashperk_message("cwl/missed-attacks.json"),
+                clashperk_message("cwl/lineup-change.json"),
+            ],
+            "clan-games": [clashperk_message("clan-games/final-leaderboard.json")],
+            "capital": [
+                clashperk_message("capital/contribution.json"),
+                clashperk_message("capital/raid-attack.json"),
+                clashperk_message("capital/weekly-summary.json"),
+            ],
+            "donations": [clashperk_message("donations/daily.json")],
+        },
+    )
+    out = tmp_path / "normalized"
+    result = normalize_capture(raw, out, window=AUGUST)
+    dataset = result.dataset
+    assert dataset.regular_wars == 1
+    assert dataset.cwl_rounds == 2
+    assert dataset.clan_games_completed is True
+    assert dataset.raid_weekends == 1
+    by_tag = {player.player_tag: player for player in dataset.players}
+
+    aurora = by_tag[AURORA]
+    assert aurora.regular_war.wars_participated == 1
+    assert aurora.regular_war.attacks_used == 1
+    assert aurora.regular_war.attacks_missed == 0
+    assert aurora.regular_war.total_stars == 3
+    assert aurora.regular_war.average_destruction_percent == 100.0
+    assert aurora.clan_games.points == 4000
+    assert aurora.capital.contribution == 1200
+    assert aurora.capital.raid_attacks is None
+    assert aurora.donations.donated == 8420
+    assert aurora.donations.received == 5210
+
+    cascade = by_tag[CASCADE]
+    assert cascade.regular_war.attacks_used == 1
+    assert cascade.regular_war.attacks_missed == 1
+    assert cascade.regular_war.total_stars == 2
+    assert cascade.clan_games.points == 4000
+    assert cascade.capital.contribution is None
+    assert cascade.capital.raid_attacks == 6
+    assert cascade.donations.donated == 6100
+
+    dune = by_tag[DUNE]
+    assert dune.regular_war.attacks_used == 0
+    assert dune.regular_war.attacks_missed == 2
+    assert dune.clan_games.points == 0
+    assert dune.cwl.attacks_missed == 1
+    assert dune.cwl.rounds_in_lineup == 2
+    assert dune.donations.donated == 0
+
+    borealis = by_tag[BOREALIS]
+    assert borealis.regular_war.wars_participated == 0
+    assert borealis.regular_war.attacks_used is None
+    assert borealis.clan_games.points is None
+    assert borealis.cwl.rounds_in_lineup == 1
+    assert borealis.capital.contribution is None
+
+    notes = " ".join(dataset.data_notes)
+    assert "not wired" not in notes
+    assert "Everest" in notes
+    assert any("unknown_layout" in note for note in dataset.data_notes)
+    MonthlyDataset.model_validate_json(result.dataset_path.read_text(encoding="utf-8"))
+
+    capsys.readouterr()
+    assert cli.main(["report", "--input", str(result.dataset_path), "--dry-run"]) == 0
+    printed = capsys.readouterr().out
+    assert "1 regular wars" in printed
+    assert "Clan Games completed" in printed
+    assert "1 Raid Weekends" in printed
 
 
 def test_manifest_timezone_mismatch_is_a_data_note(

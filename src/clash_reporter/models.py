@@ -71,6 +71,15 @@ class Capital(BaseModel):
     raid_attacks: int | None = None
 
 
+class Donations(BaseModel):
+    """Display-only totals. They do not feed the composite score."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    donated: int | None = None
+    received: int | None = None
+
+
 class MonthlyPlayerSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -81,6 +90,7 @@ class MonthlyPlayerSummary(BaseModel):
     cwl: Cwl = Cwl()
     clan_games: ClanGames = ClanGames()
     capital: Capital = Capital()
+    donations: Donations = Donations()
     warnings: list[str] = []
 
 

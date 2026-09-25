@@ -7,7 +7,7 @@ from typing import Any
 
 from clash_reporter.config import ScoringConfig
 from clash_reporter.events import DonationSummary
-from clash_reporter.models import MonthlyDataset, MonthlyPlayerSummary
+from clash_reporter.models import Donations, MonthlyDataset, MonthlyPlayerSummary
 from clash_reporter.parsers.base import (
     IGNORED_MALFORMED,
     IGNORED_MISSING_PLAYER_TAG,
@@ -56,7 +56,7 @@ def test_donations_do_not_feed_the_score(clashperk_message: Message) -> None:
 
     config = ScoringConfig()
     assert not hasattr(config, "weight_donations")
-    assert "donations" not in MonthlyPlayerSummary.model_fields
+    assert "donations" in MonthlyPlayerSummary.model_fields
     assert config.total_weight() == (
         config.weight_reliability
         + config.weight_war_performance
@@ -64,8 +64,15 @@ def test_donations_do_not_feed_the_score(clashperk_message: Message) -> None:
         + config.weight_capital
     )
 
-    player = MonthlyPlayerSummary(player_tag="#A00000", current_display_name="Aurora")
+    player = MonthlyPlayerSummary(
+        player_tag="#A00000",
+        current_display_name="Aurora",
+        donations=Donations(donated=9000, received=1),
+    )
+    bare = MonthlyPlayerSummary(player_tag="#A00000", current_display_name="Aurora")
     breakdown = score_player(player, config, min_contribution=0, max_contribution=1)
+    bare_breakdown = score_player(bare, config, min_contribution=0, max_contribution=1)
+    assert breakdown == bare_breakdown
     assert not hasattr(breakdown, "donations")
     ranked = rank_players(MonthlyDataset(month_label="August 2026", players=[player]), config)
     assert ranked.ranked == []
@@ -74,9 +81,10 @@ def test_donations_do_not_feed_the_score(clashperk_message: Message) -> None:
 def test_donations_cannot_change_rankings(sample_dataset: MonthlyDataset) -> None:
     config = ScoringConfig()
     before = [player.score.overall for player in rank_players(sample_dataset, config).ranked]
-    # Parser output never reaches ScoringConfig / MonthlyPlayerSummary.
-    assert "donations" not in MonthlyPlayerSummary.model_fields
-    after = [player.score.overall for player in rank_players(sample_dataset, config).ranked]
+    boosted = sample_dataset.model_copy(deep=True)
+    for player in boosted.players:
+        player.donations = Donations(donated=50_000, received=50_000)
+    after = [player.score.overall for player in rank_players(boosted, config).ranked]
     assert before == after
 
 
