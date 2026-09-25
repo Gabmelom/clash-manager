@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     #: Override only to point the client at a local stub instead of Discord.
     discord_api_base_url: str = DEFAULT_BASE_URL
 
+    #: Identity-only Clash of Clans API access. Both must be set before a clan
+    #: roster is fetched. Missing values skip the roster; they do not fail a run.
+    coc_api_token: str | None = Field(default=None)
+    coc_clan_tag: str | None = Field(default=None)
+    coc_api_base_url: str = "https://api.clashofclans.com/v1"
+
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
 
     def require_discord(self) -> None:

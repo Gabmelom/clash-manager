@@ -117,14 +117,23 @@ What it does:
   mid-month gap is only on `intervals` and a per-player warning. Full #11 can
   decide whether the report should surface that churn.
 
+Name→tag attribution:
+
+- A name-only row matches a tag when that display name is unique in the window's
+  tag-bearing logs (members join/leave/role/name, per-player capital).
+- Names still unmatched are filled from the current CoC clan roster when
+  `COC_API_TOKEN` and `COC_CLAN_TAG` are set and that roster name is unique.
+- Duplicate or unknown names stay diagnostics. The roster is identity only.
+- A missing token or an API error is a data note, and Discord-only attribution still runs.
+- The snapshot is `coc_roster.json` in the normalize output. `run` also copies it
+  next to the raw Discord capture.
+
 What it deliberately does not do:
 
 - A missing channel file leaves that family's per-player metrics `None`. Dataset war
   counts stay `0` in that case because nothing was parsed, and a data note says the
   file is missing. `report --dry-run` must not flag anyone for review solely from that gap.
-- Name-only rows match a member tag only when the display name is unique in the
-  window's tag-bearing logs. Duplicate or unknown names stay diagnostics. There is
-  no Clash of Clans API client (`AGENTS.md`).
+- It does not pull war, Clan Games, capital, or donation numbers from the CoC API.
 
 `--month` is optional when the fetch manifest is present. Pass `--month YYYY-MM` to
 override it, or when normalizing a directory that has `members.json` but no manifest.
@@ -398,10 +407,11 @@ Names match `.env.example`. Configure them on the repository before the first
 dispatch. The workflow reads a variable first and falls back to a secret of
 the same name.
 
-Repository secret (required):
+Repository secrets:
 
 ```text
-DISCORD_BOT_TOKEN
+DISCORD_BOT_TOKEN   # required
+COC_API_TOKEN       # optional; identity-only clan roster. Omit to stay Discord-only.
 ```
 
 Repository variables, or secrets of the same name:
@@ -416,7 +426,13 @@ DISCORD_CLAN_GAMES_CHANNEL_ID
 DISCORD_DONATIONS_CHANNEL_ID
 DISCORD_REPORT_CHANNEL_ID
 REPORT_TIMEZONE
+COC_CLAN_TAG
 ```
+
+`COC_CLAN_TAG` is the clan whose current member list fills unmatched display names.
+`COC_API_TOKEN` is the Clash of Clans developer token for that read. Metrics are not
+taken from the API. If either is unset, the monthly job still runs and records a data
+note. See `docs/DATA_CONTRACT.md` (Identity).
 
 `REPORT_TIMEZONE` defaults to `America/Toronto` when unset. `DISCORD_DONATIONS_CHANNEL_ID`
 is optional and is the ID of `#donations`. The other channel IDs are required

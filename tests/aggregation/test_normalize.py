@@ -11,11 +11,13 @@ import pytest
 
 from clash_reporter import main as cli
 from clash_reporter.aggregation.normalize import normalize_capture
+from clash_reporter.coc_client import load_clan_roster
 from clash_reporter.collection.capture import dump_json
-from clash_reporter.config import ScoringConfig
+from clash_reporter.config import ScoringConfig, Settings
 from clash_reporter.models import MonthlyDataset
 from clash_reporter.parsers.base import parse_all, parse_player_title
 from clash_reporter.parsers.members import MembersParser
+from clash_reporter.roster import ClanRoster, RosterMember
 from clash_reporter.scoring import rank_players
 from clash_reporter.window import month_window, snowflake_for
 
@@ -440,3 +442,50 @@ def test_manifest_timezone_mismatch_is_a_data_note(
         "Fetch manifest timezone is UTC" in note and "America/Toronto" in note
         for note in result.dataset.data_notes
     )
+
+
+QUARRY = "#QY0QRRRY"
+
+
+def test_roster_assigns_unmatched_war_row_and_writes_snapshot(
+    clashperk_message: Message, tmp_path: Path
+) -> None:
+    attack = clashperk_message("wars/attack.json")
+    attack["content"] = attack["content"].replace("Cascade", "Quarry")
+    raw = write_raw_capture(
+        tmp_path / "raw",
+        _sample_messages(clashperk_message),
+        extra_channels={"wars": [attack]},
+    )
+    roster = ClanRoster(
+        clan_tag="#2Y0LRPV8Q",
+        members=(RosterMember(tag=QUARRY, name="Quarry"),),
+        note=None,
+        fetched_at=utc(2026, 9, 1, 12),
+    )
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST, roster=roster)
+    assert result.roster_path is not None
+    snapshot = json.loads(result.roster_path.read_text(encoding="utf-8"))
+    assert snapshot["ok"] is True
+    assert snapshot["members"] == [{"name": "Quarry", "tag": QUARRY}]
+    quarry = next(player for player in result.dataset.players if player.player_tag == QUARRY)
+    assert quarry.regular_war.attacks_used == 1
+    assert quarry.current_display_name == "Quarry"
+    assert any("supplemented name" in note for note in result.dataset.data_notes)
+    assert (tmp_path / "raw" / "coc_roster.json").exists() is False
+
+
+def test_missing_coc_credentials_keep_discord_only_attribution(
+    clashperk_message: Message, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("COC_API_TOKEN", raising=False)
+    monkeypatch.delenv("COC_CLAN_TAG", raising=False)
+    raw = write_raw_capture(tmp_path / "raw", _sample_messages(clashperk_message))
+    roster = load_clan_roster(Settings(_env_file=None), fetched_at=utc(2026, 9, 1))  # type: ignore[call-arg]
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST, roster=roster)
+    assert result.roster_path is not None
+    snapshot = json.loads(result.roster_path.read_text(encoding="utf-8"))
+    assert snapshot["ok"] is False
+    assert snapshot["members"] == []
+    assert any("Discord logs only" in note for note in result.dataset.data_notes)
+    assert QUARRY not in {player.player_tag for player in result.dataset.players}

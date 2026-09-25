@@ -2,7 +2,7 @@
 
 Each parser is a pure function over a raw Discord message: it emits normalized
 events or a structured diagnostic. There is no HTTP, clock, or file access
-here, and no name→tag resolver (see ``AGENTS.md``, Known deferred decisions).
+here. Name→tag attribution lives in aggregation, not in parsers.
 """
 
 from clash_reporter.parsers.base import (

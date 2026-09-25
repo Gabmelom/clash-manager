@@ -79,6 +79,9 @@ jobs:
           DISCORD_REPORT_CHANNEL_ID: ${{ vars.DISCORD_REPORT_CHANNEL_ID || secrets.DISCORD_REPORT_CHANNEL_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE || 'America/Toronto' }}
           REPORT_MONTH: ${{ github.event.inputs.month || 'previous' }}
+          # Identity only. Unset values skip the roster; the run still posts.
+          COC_API_TOKEN: ${{ secrets.COC_API_TOKEN }}
+          COC_CLAN_TAG: ${{ vars.COC_CLAN_TAG || secrets.COC_CLAN_TAG }}
         run: clash-reporter run --month "$REPORT_MONTH" --post
 
       - name: Upload raw payloads

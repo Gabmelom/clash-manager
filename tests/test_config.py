@@ -10,6 +10,8 @@ def test_settings_load_without_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key.upper(), raising=False)
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.discord_bot_token is None
+    assert settings.coc_api_token is None
+    assert settings.coc_clan_tag is None
     assert settings.report_timezone == "America/Toronto"
 
 
