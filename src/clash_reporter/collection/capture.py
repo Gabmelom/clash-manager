@@ -26,6 +26,7 @@ __all__ = [
     "CaptureRun",
     "ChannelCapture",
     "ChannelCaptureError",
+    "ChannelCaptureFailure",
     "capture_channels",
     "dump_json",
 ]
@@ -54,6 +55,15 @@ class ChannelCapture:
 
 
 @dataclass(frozen=True)
+class ChannelCaptureFailure:
+    """A channel that could not be read. No file is written for it."""
+
+    name: str
+    channel_id: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class CaptureRun:
     window: ReportingWindow
     output_dir: Path
@@ -61,6 +71,7 @@ class CaptureRun:
     channels: tuple[ChannelCapture, ...]
     sanitized: bool
     captured_at: datetime
+    failures: tuple[ChannelCaptureFailure, ...] = ()
 
     @property
     def message_count(self) -> int:
@@ -80,6 +91,7 @@ def capture_channels(
     output_dir: Path,
     sanitize: bool = False,
     captured_at: datetime | None = None,
+    allow_partial: bool = False,
 ) -> CaptureRun:
     """Capture every configured channel for ``window`` into ``output_dir``.
 
@@ -88,6 +100,8 @@ def capture_channels(
 
     Raises :class:`ChannelCaptureError` naming the channel as soon as one
     channel cannot be read, and leaves no file behind for that channel.
+    ``allow_partial`` records the failure and continues, so a later step can
+    decide whether an incomplete capture may still be posted.
     """
     if not channels:
         raise ValueError("No channels to capture")
@@ -96,12 +110,18 @@ def capture_channels(
     moment = (captured_at or datetime.now(tz=UTC)).astimezone(UTC)
     sanitizer = IdSanitizer() if sanitize else None
     captures: list[ChannelCapture] = []
+    failures: list[ChannelCaptureFailure] = []
 
     for name, channel_id in channels.items():
         try:
             messages = collect_channel(client, channel_id, window)
         except DiscordError as exc:
-            raise ChannelCaptureError(name, str(channel_id), str(exc)) from exc
+            if not allow_partial:
+                raise ChannelCaptureError(name, str(channel_id), str(exc)) from exc
+            failure = ChannelCaptureFailure(name, str(channel_id), str(exc))
+            failures.append(failure)
+            logger.warning("skipped %s: %s", name, failure.reason)
+            continue
         if sanitizer is not None:
             messages = sanitizer.sanitize_all(messages)
         path = output_dir / f"{name}.json"
@@ -144,6 +164,20 @@ def capture_channels(
                     }
                     for capture in captures
                 ],
+                **(
+                    {
+                        "failures": [
+                            {
+                                "name": failure.name,
+                                "channel_id": failure.channel_id,
+                                "reason": failure.reason,
+                            }
+                            for failure in failures
+                        ]
+                    }
+                    if failures
+                    else {}
+                ),
             }
         ),
     )
@@ -154,6 +188,7 @@ def capture_channels(
         channels=tuple(captures),
         sanitized=sanitize,
         captured_at=moment,
+        failures=tuple(failures),
     )
 
 

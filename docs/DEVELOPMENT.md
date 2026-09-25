@@ -52,7 +52,15 @@ python -m clash_reporter run --month previous --post
 ```
 
 `run` fetches, normalizes, and renders. Without `--post` it prints the report
-and does not post. The scheduled workflow file itself is a later issue.
+and does not post. It also writes `artifacts/report/report.md` and
+`artifacts/report/report.csv`.
+
+By default every required data channel (`#cp-members`, `#cp-wars`, `#cp-cwl`,
+`#cp-capital`, `#cp-games`) must be configured and readable. An inaccessible
+required channel fails the run before anything is posted. `#cp-donations` is
+optional. A readable `#cp-games` channel with no Clan Games event is a valid
+month, not a failure. `--allow-partial` posts anyway when a required channel
+is missing or inaccessible; the scheduled workflow does not pass it.
 
 ## Capture raw payloads
 
@@ -322,33 +330,71 @@ Discord API clients must respect rate-limit headers and retry instructions.
 
 ## GitHub Actions
 
-V1 workflow should support both:
+`.github/workflows/monthly-report.yml` supports both:
 
 ```text
-workflow_dispatch
-schedule
+workflow_dispatch   # optional input: month (YYYY-MM, previous, or current)
+schedule            # 05:00 UTC on the 1st of each month
 ```
 
-The workflow should:
+The job checks out the repo, installs the package, runs the same lint and tests
+as CI, then:
 
-1. checkout
-2. set up Python
-3. install dependencies
-4. run tests
-5. run monthly report
-6. upload diagnostics / raw / normalized artifacts
+```text
+clash-reporter run --month previous --post
+```
 
-The application, not the cron expression, owns reporting-month calculation.
+A manual dispatch uses the `month` input when one is provided. The application
+resolves that month in `REPORT_TIMEZONE`. The cron expression does not.
+
+### Why 05:00 UTC
+
+GitHub Actions schedules are UTC. `REPORT_TIMEZONE` is `America/Toronto`, which
+is UTC-5 in standard time and UTC-4 in daylight time. Midnight on the 1st in
+Toronto is therefore 05:00 UTC during EST and 04:00 UTC during EDT.
+
+`0 5 1 * *` is the earliest UTC time that is always on the 1st in Toronto:
+
+```text
+EST (UTC-5): 05:00 UTC = 00:00 America/Toronto on the 1st
+EDT (UTC-4): 05:00 UTC = 01:00 America/Toronto on the 1st
+```
+
+`00:00 UTC` on the 1st is still the previous evening in Toronto (19:00 or 20:00).
+A job at that hour would be early if anything trusted the cron clock for the
+calendar month. `run --month previous` does not: it computes the previous
+calendar month from `REPORT_TIMEZONE` at the moment the process starts, which
+at 05:00 UTC is already the 1st in Toronto, so "previous" is the month that
+just ended.
+
+On both success and failure the workflow uploads:
+
+```text
+artifacts/raw
+artifacts/normalized
+artifacts/normalized/diagnostics
+artifacts/report
+```
+
+as the `raw`, `normalized`, `diagnostics`, and `report` workflow artifacts.
+Diagnostics matter most when the job fails, so the upload steps use `if: always()`.
+
+The bot token is a secret and is never printed. The run step does not dump the
+environment, and the Discord client scrubs the token out of error text.
 
 ## Secrets and variables
 
-Use GitHub repository secrets for:
+Names match `.env.example`. Configure them on the repository before the first
+dispatch. The workflow reads a variable first and falls back to a secret of
+the same name.
+
+Repository secret (required):
 
 ```text
 DISCORD_BOT_TOKEN
 ```
 
-Use repository variables or secrets for IDs:
+Repository variables, or secrets of the same name:
 
 ```text
 DISCORD_GUILD_ID
@@ -359,7 +405,12 @@ DISCORD_CP_CAPITAL_CHANNEL_ID
 DISCORD_CP_GAMES_CHANNEL_ID
 DISCORD_CP_DONATIONS_CHANNEL_ID
 DISCORD_REPORT_CHANNEL_ID
+REPORT_TIMEZONE
 ```
+
+`REPORT_TIMEZONE` defaults to `America/Toronto` when unset. `DISCORD_CP_DONATIONS_CHANNEL_ID`
+is optional. The other channel IDs are required; a missing required channel fails
+the run before posting.
 
 Channel IDs are not credentials, but keeping environment-specific configuration outside code is still preferable.
 

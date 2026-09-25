@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from clash_reporter import main as cli
-from clash_reporter.config import DATA_CHANNELS
+from clash_reporter.config import DATA_CHANNELS, REQUIRED_DATA_CHANNELS, channel_env_var
 from clash_reporter.discord_client import DiscordClient
 
 SAMPLE_DATASET = Path(__file__).parent / "fixtures" / "normalized" / "monthly_players.sample.json"
@@ -18,6 +18,18 @@ TOKEN = "not-a-real-token-abc123"  # noqa: S105 - dummy value for mocked transpo
 
 MEMBERS_CHANNEL = "400000000000000001"
 WARS_CHANNEL = "400000000000000002"
+REQUIRED_CHANNEL_IDS = {
+    "cp-members": MEMBERS_CHANNEL,
+    "cp-wars": WARS_CHANNEL,
+    "cp-cwl": "400000000000000003",
+    "cp-capital": "400000000000000004",
+    "cp-games": "400000000000000005",
+}
+
+
+def _configure_required_channels(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in REQUIRED_DATA_CHANNELS:
+        monkeypatch.setenv(channel_env_var(name), REQUIRED_CHANNEL_IDS[name])
 
 
 @pytest.fixture(autouse=True)
@@ -410,7 +422,7 @@ def test_run_without_post_fetches_and_prints_without_posting(
         )
 
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    _configure_required_channels(monkeypatch)
     monkeypatch.setattr(cli, "DiscordClient", build)
 
     exit_code = cli.main(
@@ -422,12 +434,19 @@ def test_run_without_post_fetches_and_prints_without_posting(
             str(tmp_path / "raw"),
             "--normalized-output",
             str(tmp_path / "normalized"),
+            "--report-output",
+            str(tmp_path / "report"),
         ]
     )
     assert exit_code == 0
-    assert seen == ["GET"]
-    assert "Monthly Report" in capsys.readouterr().out
+    assert seen == ["GET"] * len(REQUIRED_DATA_CHANNELS)
+    assert "POST" not in seen
+    captured = capsys.readouterr()
+    assert "Monthly Report" in captured.out
+    assert TOKEN not in captured.out
+    assert TOKEN not in captured.err
     assert (tmp_path / "normalized" / "monthly_players.json").is_file()
+    assert (tmp_path / "report" / "report.md").is_file()
 
 
 def test_run_post_sends_the_report_and_csv(
@@ -463,7 +482,7 @@ def test_run_post_sends_the_report_and_csv(
         )
 
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    _configure_required_channels(monkeypatch)
     monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
     monkeypatch.setattr(cli, "DiscordClient", build)
 
@@ -477,11 +496,13 @@ def test_run_post_sends_the_report_and_csv(
             str(tmp_path / "raw"),
             "--normalized-output",
             str(tmp_path / "normalized"),
+            "--report-output",
+            str(tmp_path / "report"),
         ]
     )
     assert exit_code == 0
     posts = [request for request in seen if request.method == "POST"]
-    assert [request.method for request in seen] == ["GET", "POST"]
+    assert [request.method for request in seen] == ["GET"] * len(REQUIRED_DATA_CHANNELS) + ["POST"]
     assert posts[0].url.path.endswith(f"/channels/{REPORT_CHANNEL}/messages")
     body = posts[0].read().decode()
     assert "clan-report.csv" in body
@@ -503,6 +524,199 @@ def test_run_post_without_report_channel_posts_nothing(
     assert exit_code == 2
     assert "DISCORD_REPORT_CHANNEL_ID" in capsys.readouterr().err
     assert not list(tmp_path.iterdir())
+
+
+def test_run_inaccessible_wars_posts_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#cp-wars 403 aborts before any message is posted."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.method)
+        if request.method == "POST":
+            raise AssertionError("an inaccessible #cp-wars must not post")
+        channel_id = request.url.path.split("/")[-2]
+        if channel_id == WARS_CHANNEL:
+            return httpx.Response(403, json={"message": f"Missing Access {TOKEN}"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    _configure_required_channels(monkeypatch)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--post",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+            "--report-output",
+            str(tmp_path / "report"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cp-wars" in captured.err
+    assert "POST" not in seen
+    assert TOKEN not in captured.err
+    assert TOKEN not in captured.out
+    assert not (tmp_path / "report").exists()
+
+
+def test_run_without_clan_games_event_still_posts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A readable #cp-games channel with no event is a valid month."""
+    seen: list[httpx.Request] = []
+    games_id = REQUIRED_CHANNEL_IDS["cp-games"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "1"})
+        channel_id = request.url.path.split("/")[-2]
+        if channel_id == games_id:
+            return httpx.Response(200, json=[])
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    _configure_required_channels(monkeypatch)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--post",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+            "--report-output",
+            str(tmp_path / "report"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert any(request.method == "POST" for request in seen)
+    assert "Posted 1 message" in captured.out
+    assert TOKEN not in captured.out
+    assert TOKEN not in captured.err
+    games = json.loads((tmp_path / "raw" / "cp-games.json").read_text(encoding="utf-8"))
+    assert games == []
+
+
+def test_run_allow_partial_posts_when_wars_are_inaccessible(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.method)
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "1"})
+        channel_id = request.url.path.split("/")[-2]
+        if channel_id == WARS_CHANNEL:
+            return httpx.Response(403, json={"message": "Missing Access"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    _configure_required_channels(monkeypatch)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--post",
+            "--allow-partial",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+            "--report-output",
+            str(tmp_path / "report"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "POST" in seen
+    assert "partial report" in captured.err
+    assert "cp-wars" in captured.err
+    assert TOKEN not in captured.err
 
 
 def test_fetch_rejects_an_invalid_month(

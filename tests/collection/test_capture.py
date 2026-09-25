@@ -233,6 +233,33 @@ def test_a_forbidden_channel_fails_the_run_and_leaves_no_file(
     assert not list(tmp_path.glob(".*.tmp"))
 
 
+def test_allow_partial_records_an_inaccessible_channel_and_continues(
+    clashperk_history: dict[str, list[dict[str, Any]]], tmp_path: Path
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if f"/channels/{WARS_CHANNEL}/" in request.url.path:
+            return httpx.Response(403, json={"message": "Missing Access"})
+        return httpx.Response(200, json=clashperk_history[MEMBERS_CHANNEL])
+
+    with client_for(httpx.MockTransport(handler)) as client:
+        run = capture_channels(
+            client,
+            channels={"cp-members": MEMBERS_CHANNEL, "cp-wars": WARS_CHANNEL},
+            window=resolve_month("2026-08", timezone=TORONTO),
+            output_dir=tmp_path,
+            captured_at=CAPTURED_AT,
+            allow_partial=True,
+        )
+
+    assert [channel.name for channel in run.channels] == ["cp-members"]
+    assert [failure.name for failure in run.failures] == ["cp-wars"]
+    assert not (tmp_path / "cp-wars.json").exists()
+    assert (tmp_path / "cp-members.json").is_file()
+    manifest = read(run.manifest_path)
+    assert manifest["failures"][0]["name"] == "cp-wars"
+    assert TOKEN not in json.dumps(manifest)
+
+
 def test_capture_requires_at_least_one_channel(
     clashperk_history: dict[str, list[dict[str, Any]]], tmp_path: Path
 ) -> None:
