@@ -15,10 +15,9 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from clash_reporter.events import (
+    MemberEvent,
     MemberJoined,
     MemberLeft,
-    PlayerNameChanged,
-    PlayerRoleChanged,
 )
 from clash_reporter.window import ReportingWindow
 
@@ -31,8 +30,6 @@ __all__ = [
     "format_month_day",
     "reconstruct_membership",
 ]
-
-type MemberEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged
 
 _MONTH_ABBREV = (
     "Jan",

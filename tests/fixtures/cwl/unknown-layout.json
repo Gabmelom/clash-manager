@@ -1,0 +1,34 @@
+{
+  "attachments": [],
+  "author": {
+    "avatar": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "bot": true,
+    "discriminator": "0000",
+    "flags": 0,
+    "global_name": null,
+    "id": "300000000000000003",
+    "public_flags": 0,
+    "username": "ClashPerk"
+  },
+  "channel_id": "400000000000000003",
+  "components": [],
+  "content": "",
+  "edited_timestamp": null,
+  "embeds": [
+    {
+      "description": "A future ClashPerk CWL layout this parser does not know.",
+      "title": "Maple Legends (#2QP9VL8C)",
+      "type": "rich"
+    }
+  ],
+  "flags": 0,
+  "id": "1535980968346262274",
+  "mention_everyone": false,
+  "mention_roles": [],
+  "mentions": [],
+  "pinned": false,
+  "timestamp": "2026-08-09T12:00:00.000000+00:00",
+  "tts": false,
+  "type": 0,
+  "webhook_id": "300000000000000003"
+}

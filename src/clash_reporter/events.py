@@ -1,9 +1,10 @@
 """Normalized per-message event models from ``docs/DATA_CONTRACT.md``.
 
-Player tag is the canonical identity. Each event carries the source metadata
-block so a ranking can be traced back to the Discord message that produced it.
-Membership events are the first log family; later parsers add their own types
-alongside these.
+Player tag is the canonical identity when ClashPerk exposes one. Membership
+logs carry a tag in the embed title; war and CWL logs are name-only, so those
+events keep ``player_tag=None`` rather than inventing one. Each event carries
+the source metadata block so a ranking can be traced back to the Discord
+message that produced it.
 """
 
 from __future__ import annotations
@@ -14,11 +15,17 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 __all__ = [
+    "CwlAttack",
+    "CwlLineupChange",
+    "CwlMissedAttack",
+    "MemberEvent",
     "MemberJoined",
     "MemberLeft",
     "PlayerNameChanged",
     "PlayerRoleChanged",
     "SourceMetadata",
+    "WarAttack",
+    "WarMissedAttacks",
 ]
 
 
@@ -75,3 +82,88 @@ class PlayerRoleChanged(_EventBase):
     new_role: str
     # ClashPerk's role-change log only emits the new role.
     old_role: str | None = None
+
+
+class _IndexedNameEvent(BaseModel):
+    """Player event from a name-only ClashPerk log.
+
+    ``player_tag`` stays ``None`` until a later attribution step (issue #12).
+    ``event_index`` distinguishes several rows from one Discord message.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_type: str
+    player_tag: str | None = None
+    player_name: str
+    occurred_at: datetime
+    source: SourceMetadata
+    event_index: int = 0
+
+    @property
+    def event_key(self) -> str:
+        identity = self.player_tag or self.player_name
+        return f"{self.source.message_id}:{self.event_type}:{identity}:{self.event_index}"
+
+
+class WarAttack(_IndexedNameEvent):
+    event_type: Literal["WarAttack"] = "WarAttack"
+    war_id_or_key: str | None = None
+    stars: int | None = None
+    destruction_percent: int | None = None
+    attacker_th: int | None = None
+    defender_th: int | None = None
+    target_position: int | None = None
+    ended_at: datetime | None = None
+    reporting_month: str | None = None
+
+
+class WarMissedAttacks(_IndexedNameEvent):
+    event_type: Literal["WarMissedAttacks"] = "WarMissedAttacks"
+    war_id_or_key: str | None = None
+    missed_count: int
+    clan_tag: str | None = None
+    opponent_tag: str | None = None
+    ended_at: datetime | None = None
+    reporting_month: str | None = None
+
+
+class CwlAttack(_IndexedNameEvent):
+    event_type: Literal["CwlAttack"] = "CwlAttack"
+    cwl_season_or_key: str | None = None
+    round_number: int | None = None
+    stars: int | None = None
+    destruction_percent: int | None = None
+    attacker_th: int | None = None
+    defender_th: int | None = None
+    target_position: int | None = None
+    ended_at: datetime | None = None
+    reporting_month: str | None = None
+
+
+class CwlMissedAttack(_IndexedNameEvent):
+    event_type: Literal["CwlMissedAttack"] = "CwlMissedAttack"
+    cwl_season_or_key: str | None = None
+    round_number: int | None = None
+    missed_count: int
+    clan_tag: str | None = None
+    opponent_tag: str | None = None
+    ended_at: datetime | None = None
+    reporting_month: str | None = None
+
+
+class CwlLineupChange(_IndexedNameEvent):
+    event_type: Literal["CwlLineupChange"] = "CwlLineupChange"
+    cwl_season_or_key: str | None = None
+    round_number: int | None = None
+    change_type: Literal["added", "removed"]
+    clan_tag: str | None = None
+    opponent_tag: str | None = None
+    ended_at: datetime | None = None
+    reporting_month: str | None = None
+
+
+# Membership logs always carry a player tag. War/CWL events are a separate
+# union arm (``DomainEvent`` in ``clash_reporter.parsers.base``) because those
+# logs are name-only (``player_tag=None``).
+type MemberEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged

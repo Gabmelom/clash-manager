@@ -89,18 +89,34 @@ source_message_id
 
 ```text
 war_id_or_key
-player_tag
+player_tag          # None on name-only ClashPerk logs; never invented
 player_name
 occurred_at
 stars
 destruction_percent
 attacker_th
- defender_th
+defender_th
 target_position
+ended_at            # war end, used for month attribution
+reporting_month     # YYYY-MM of ended_at (UTC)
 source_message_id
 ```
 
-Fields that ClashPerk does not reliably expose should be optional.
+Fields that ClashPerk does not reliably expose should be optional. Absent
+destruction or town hall is `None`, not `0`. `0` is reserved for an observed
+zero (for example three empty-star emojis, or `` `0%` ``).
+
+### War identity (`war_id_or_key`)
+
+Attacks and misses from the same war must share one key.
+
+1. **Primary:** `war:{id}` from the War Embed Log Attack/Defense button
+   `custom_id` JSON (`cmd: "war"`, `war_id: <int>`).
+2. **Fallback** (no embed, or embed without `war_id`):
+   `fallback:{home_clan_tag}:{opponent_clan_tag}:{YYYY-MM-DD}` from the War
+   Missed Attacks Log, which ClashPerk posts at `warEnded`. The date is the UTC
+   calendar day of that message. Attacks in the window before that message
+   inherit the same key.
 
 ### WarMissedAttacks
 
@@ -110,21 +126,47 @@ Normalize to one event per player:
 
 ```text
 war_id_or_key
-player_tag
+player_tag          # None on name-only logs
+player_name
 missed_count
 occurred_at
 source_message_id
 ```
+
+ClashPerk missed-attacks and lineup lines include a map-position emoji. The
+parser reads it to split the line, but V1 event models do not store it.
+Preserve that if identity or aggregation later needs map order (issues #11 / #12).
 
 ### CwlAttack
 
 Same basic structure as `WarAttack`, plus:
 
 ```text
+cwl_season_or_key
 round_number
 ```
 
-if reliably available.
+`round_number` is taken from `(CWL Round N)` / footer `Round #N` when those
+strings are present. The CWL Attack Log content does not include a round; the
+parser fills `round_number` only after joining the attack to a CWL embed or
+missed-attacks message in the same channel.
+
+Regular war and CWL are distinct event types and are never merged.
+
+CWL missed-attacks embeds are distinguished from regular-war missed-attacks by
+`(CWL Round N)` in the description. That is the only payload cue; parsers do
+not inspect Discord channel names. `#cp-wars` vs `#cp-cwl` is the operational
+routing guarantee if that round string is ever absent.
+
+### CWL season key
+
+```text
+cwl:{home_clan_tag}:{YYYY-MM}
+```
+
+`YYYY-MM` is the UTC calendar month of that round's end timestamp (missed-attacks
+message or CWL embed `ended` timestamp). Rounds of one CWL almost always share a
+month, so this groups a season.
 
 ### CwlMissedAttack
 
@@ -314,15 +356,18 @@ Use event timestamp.
 
 Prefer associating attacks and misses to a war / round, then attribute that war to a reporting month using a documented rule.
 
-Recommended rule:
+Rule:
 
 ```text
 include war in the month in which the war ended
 ```
 
-This avoids splitting one war across two reports.
+`reporting_month` is `YYYY-MM` of `ended_at` in UTC. This avoids splitting one
+war across two reports. A war that starts on 31 July and ends on 1 August is
+an August war.
 
-If ClashPerk payloads do not provide a stable war end timestamp, define and test a fallback based on the final embed / missed-attacks message.
+If ClashPerk payloads do not provide a stable war end timestamp, the fallback is
+the War Missed Attacks / CWL Missed Attacks message posted at `warEnded`.
 
 ### Clan Games
 
@@ -351,7 +396,8 @@ Examples:
 - unknown ClashPerk embed layout
 - player name found but no player tag available
 - duplicate conflicting event
-- missed-attack record without corresponding war context
+- missed-attack / war-attack record without corresponding war context
+  (warning on an emitted event; the row is not dropped)
 - Clan Games leaderboard missing expected rows
 - member left with no known prior join event
 
