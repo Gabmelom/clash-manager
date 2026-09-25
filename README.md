@@ -234,6 +234,17 @@ Each run writes one file per channel plus a `manifest.json` recording the channe
 
 Requires `DISCORD_BOT_TOKEN` and at least one `DISCORD_CP_*_CHANNEL_ID`. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
 
+### Normalize a fetch directory (members-only)
+
+`normalize` turns a `fetch` directory into the `MonthlyDataset` JSON that `report --dry-run` already consumes. Today it only parses `#cp-members` (partial issue #11). War, CWL, Clan Games, capital, and donation metrics stay missing (`null`), not zero.
+
+```bash
+clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
+clash-reporter report --input ./artifacts/normalized/monthly_players.json --dry-run
+```
+
+`--month` defaults to the fetch manifest. Pass `--month YYYY-MM` when there is no manifest. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), "Members-only `normalize`".
+
 ## Expected ClashPerk payloads
 
 ClashPerk is open source, so the exact shape of every log message can be read from its log builders in [clashperk/clashperk](https://github.com/clashperk/clashperk) (`src/core/clan-log.ts`, `clan-war-log.ts`, `capital-log.ts`, `clan-games-log.ts`, `donation-log.ts`). Parser work does not have to wait for a month of live Discord history.
@@ -262,15 +273,18 @@ ClashPerk is open source, so the exact shape of every log message can be read fr
 ## Status
 
 **Early implementation.** Scoring, ranking, and report rendering work offline against a
-normalized dataset:
+normalized dataset. `#cp-members` can also be parsed from a `fetch` directory into that
+dataset (members-only; other activity fields stay missing):
 
 ```bash
 python -m clash_reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
+python -m clash_reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
+python -m clash_reporter report --input ./artifacts/normalized/monthly_players.json --dry-run
 ```
 
 Reading Discord works too: `clash-reporter fetch` resolves a timezone-aware reporting month
 and captures raw ClashPerk payloads to JSON.
 
-Still missing between the two: parsers, and the aggregation that turns events into a monthly
-summary. The remaining V1 work is tracked in GitHub issues, seeded from
+Still missing: war/CWL/games/capital/donation parsers, and the rest of issue #11
+aggregation. The remaining V1 work is tracked in GitHub issues, seeded from
 [`.github/backlog/`](.github/backlog).

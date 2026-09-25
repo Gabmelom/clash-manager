@@ -314,6 +314,9 @@ Examples:
 - No regular wars occurred -> `wars_participated = 0`, but this should not be a performance penalty
 - War parser cannot identify player -> warning, not an invented zero
 
+The members-only `normalize` command (partial issue #11) has not parsed war/CWL/games/capital/donation
+logs yet. Those per-player metrics must stay `null` until those parsers land. See `docs/DEVELOPMENT.md`.
+
 ## Reporting eligibility
 
 Do not equate membership with ranking eligibility.

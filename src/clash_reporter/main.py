@@ -1,6 +1,6 @@
 """Command-line entry point.
 
-Two commands exist today:
+Three commands exist today:
 
 ``report``
     Renders a monthly report from a normalized dataset JSON file. Parse-free,
@@ -10,8 +10,13 @@ Two commands exist today:
     Downloads raw ClashPerk payloads for a reporting month into JSON files so
     parsers can be developed offline from real fixtures.
 
-Each command stays thin: window resolution, transport, and capture live in their
-own modules.
+``normalize``
+    Reads a fetch directory, runs the members parser, and writes a
+    ``MonthlyDataset`` plus events and parser diagnostics. This is a members-only
+    slice of issue #11: war/CWL/games/capital/donation fields stay missing.
+
+Each command stays thin: window resolution, transport, capture, parsing, and
+aggregation live in their own modules.
 """
 
 from __future__ import annotations
@@ -22,13 +27,16 @@ import sys
 from pathlib import Path
 
 from clash_reporter import __version__
+from clash_reporter.aggregation import NormalizeError, normalize_capture
+from clash_reporter.aggregation.normalize import DEFAULT_NORMALIZED_OUTPUT, window_from_manifest
 from clash_reporter.collection import ChannelCaptureError, capture_channels
+from clash_reporter.collection.capture import MANIFEST_FILENAME
 from clash_reporter.config import DATA_CHANNELS, Settings
 from clash_reporter.discord_client import DiscordClient, DiscordError
 from clash_reporter.models import MonthlyDataset
 from clash_reporter.reporting import render_report
 from clash_reporter.scoring import rank_players
-from clash_reporter.window import InvalidMonthError, resolve_month
+from clash_reporter.window import InvalidMonthError, ReportingWindow, resolve_month
 
 DEFAULT_RAW_OUTPUT = Path("./artifacts/raw")
 
@@ -95,6 +103,40 @@ def _cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_normalize(args: argparse.Namespace) -> int:
+    settings = Settings()
+    try:
+        window = _resolve_normalize_window(args, settings.report_timezone)
+        result = normalize_capture(args.input, args.output, window=window)
+    except (InvalidMonthError, NormalizeError) as exc:
+        return _fail(str(exc))
+
+    print(
+        f"Normalizing {result.window.month_label} ({result.window.month_key}) "
+        f"in {result.window.timezone} from {args.input}"
+    )
+    print(
+        f"  {result.event_count} member events, {result.player_count} players "
+        f"-> {result.dataset_path}"
+    )
+    print(f"  Events: {result.events_path}")
+    print(f"  Diagnostics ({result.ignored_count} ignored messages): {result.diagnostics_path}")
+    return 0
+
+
+def _resolve_normalize_window(args: argparse.Namespace, timezone: str) -> ReportingWindow:
+    if args.month:
+        return resolve_month(args.month, timezone=timezone)
+    window = window_from_manifest(args.input / MANIFEST_FILENAME, timezone=timezone)
+    if window is None:
+        raise NormalizeError(
+            "Month is required when the input directory has no fetch manifest. "
+            "Pass --month YYYY-MM (or 'previous' / 'current'), or normalize a "
+            "`clash-reporter fetch` output directory."
+        )
+    return window
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="clash-reporter", description=__doc__)
     parser.add_argument("--version", action="version", version=f"clash-reporter {__version__}")
@@ -156,6 +198,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Log each channel as it is captured, plus rate-limit and retry activity.",
     )
     fetch.set_defaults(func=_cmd_fetch)
+
+    normalize = subparsers.add_parser(
+        "normalize",
+        help=(
+            "Parse #cp-members from a fetch directory into a MonthlyDataset. "
+            "Members-only: war/CWL/games/capital/donation fields stay missing."
+        ),
+    )
+    normalize.add_argument(
+        "--input",
+        type=Path,
+        default=DEFAULT_RAW_OUTPUT,
+        help=f"Fetch output directory containing cp-members.json (default: {DEFAULT_RAW_OUTPUT}).",
+    )
+    normalize.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_NORMALIZED_OUTPUT,
+        help=(
+            "Directory to write events.json, monthly_players.json, and "
+            f"diagnostics/parser_warnings.json (default: {DEFAULT_NORMALIZED_OUTPUT})."
+        ),
+    )
+    normalize.add_argument(
+        "--month",
+        help=(
+            "Reporting month: YYYY-MM, 'previous', or 'current'. "
+            "Defaults to the month recorded in the fetch manifest."
+        ),
+    )
+    normalize.set_defaults(func=_cmd_normalize)
 
     parser.set_defaults(verbose=False)
     return parser
