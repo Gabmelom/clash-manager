@@ -65,19 +65,35 @@ def _member_line(player: MonthlyPlayerSummary, *, departed: bool) -> str:
     return f"- {name} - joined {when} - not ranking eligible"
 
 
+def _same_window_join_and_leave(player: MonthlyPlayerSummary) -> bool:
+    """True when the player both joined and left inside this reporting window.
+
+    Identity is the player tag on the summary. Display names are not compared.
+    """
+    membership = player.membership
+    return membership.joined_this_month and membership.departed_this_month
+
+
+def listed_members(players: list[MonthlyPlayerSummary]) -> list[MonthlyPlayerSummary]:
+    """Drop same-window join-and-leave players from a New or Departed list."""
+    return [player for player in players if not _same_window_join_and_leave(player)]
+
+
 def render_report(
     dataset: MonthlyDataset,
     ranked: RankedReport,
     *,
     top_n: int = 5,
 ) -> str:
+    new_members = listed_members(ranked.new_members)
+    departed_members = listed_members(ranked.departed_members)
     lines: list[str] = []
 
     lines.append(f"🏰 {dataset.clan_name} Monthly Report - {dataset.month_label}")
     lines.append("")
     lines.append(f"{len(ranked.ranked)} ranking-eligible members")
-    lines.append(f"{len(ranked.new_members)} new members")
-    lines.append(f"{len(ranked.departed_members)} departed members")
+    lines.append(f"{len(new_members)} new members")
+    lines.append(f"{len(departed_members)} departed members")
     lines.append(f"{dataset.regular_wars} regular wars")
     lines.append(f"{dataset.cwl_rounds} CWL rounds")
     lines.append("Clan Games completed" if dataset.clan_games_completed else "No Clan Games event")
@@ -100,16 +116,16 @@ def render_report(
             for reason in player.review_reasons:
                 lines.append(f"- {reason}")
 
-    if ranked.new_members:
+    if new_members:
         lines.append("")
         lines.append(SECTION_NEW)
-        for member in ranked.new_members:
+        for member in new_members:
             lines.append(_member_line(member, departed=False))
 
-    if ranked.departed_members:
+    if departed_members:
         lines.append("")
         lines.append(SECTION_DEPARTED)
-        for member in ranked.departed_members:
+        for member in departed_members:
             lines.append(_member_line(member, departed=True))
 
     if dataset.data_notes:

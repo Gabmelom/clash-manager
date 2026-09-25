@@ -87,6 +87,8 @@ Example:
 
 Whether departed members remain in rankings should be configurable. Recommended V1 behavior: list separately and exclude from promotion / review rankings.
 
+A player who both joined and left in the same reporting window (`joined_this_month` and `departed_this_month`) is omitted from New Members and from Departed Members, including the header counts of those lists. Join-only and leave-only players stay listed. The omission is by player tag and does not change ranking eligibility, Top Performers, or clan totals.
+
 ### 6. Data-quality note
 
 Only show this section when needed.
