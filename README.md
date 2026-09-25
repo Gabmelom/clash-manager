@@ -225,6 +225,10 @@ clash-reporter run --month previous --post
 
 `run` fetches raw logs, normalizes them, and renders the report. `--post` delivers that report. Without `--post`, the report is printed and nothing is posted. Fetch still needs `DISCORD_BOT_TOKEN` and the data-channel IDs.
 
+`#cp-members`, `#cp-wars`, `#cp-cwl`, `#cp-capital`, and `#cp-games` must be configured and readable. An inaccessible required channel fails the run before anything is posted. A readable `#cp-games` channel with no Clan Games event is still a valid month. `--allow-partial` posts anyway; it is off by default, and the monthly workflow does not pass it.
+
+The scheduled job is [`.github/workflows/monthly-report.yml`](.github/workflows/monthly-report.yml): manual `workflow_dispatch` (optional `month`) and 05:00 UTC on the 1st. Month selection stays in the app (`REPORT_TIMEZONE`), not in the cron clock. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
 ### Capture raw ClashPerk payloads
 
 `fetch` downloads the raw Discord messages for a reporting month so parsers can be built from real payloads. It downloads and writes only; it never parses.
@@ -297,8 +301,10 @@ and captures raw ClashPerk payloads to JSON.
 
 `clash-reporter report --post` delivers that report to `#clan-reports`, and
 `clash-reporter run --month previous --post` runs fetch, normalize, report, and
-post together.
+post together. The monthly GitHub Action is `.github/workflows/monthly-report.yml`.
+It fails closed: a required channel the bot cannot read is not posted.
+`--allow-partial` is the explicit override and is not used by the workflow.
 
-Still missing: wiring the war/CWL/games/capital/donation parsers into aggregation,
-and the monthly GitHub Action. The remaining V1 work is tracked in GitHub issues,
-seeded from [`.github/backlog/`](.github/backlog).
+Still missing: wiring the war/CWL/games/capital/donation parsers into aggregation.
+The remaining V1 work is tracked in GitHub issues, seeded from
+[`.github/backlog/`](.github/backlog).

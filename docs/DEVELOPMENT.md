@@ -382,6 +382,13 @@ Diagnostics matter most when the job fails, so the upload steps use `if: always(
 The bot token is a secret and is never printed. The run step does not dump the
 environment, and the Discord client scrubs the token out of error text.
 
+`run` writes raw captures with `sanitize=False`. The `raw` artifact is therefore
+unsanitized Discord history (message content, webhook ids, user ids) and stays
+downloadable by anyone who can read Actions logs for the retention window (30
+days). That is appropriate for a private clan repository. Do not widen Actions
+access, and do not promote those artifacts into git; use `fetch --sanitize` when
+building fixtures.
+
 ## Secrets and variables
 
 Names match `.env.example`. Configure them on the repository before the first
