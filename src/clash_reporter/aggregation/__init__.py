@@ -4,9 +4,8 @@ This package is the missing middle of the pipeline: parsers emit events,
 scoring consumes a ``MonthlyDataset``. Aggregation reconstructs membership
 and fills per-player summaries.
 
-The current implementation is a **members-only** slice of issue #11. War,
-CWL, Clan Games, capital, and donation parsers are not wired; those metrics
-stay ``None`` (missing), never invented zeros. See ``docs/DEVELOPMENT.md``.
+``normalize`` parses every channel file present in a fetch directory. A missing
+file leaves that family's metrics unknown. See ``docs/DEVELOPMENT.md``.
 """
 
 from clash_reporter.aggregation.membership import (

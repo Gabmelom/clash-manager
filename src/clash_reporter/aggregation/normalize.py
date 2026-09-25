@@ -1,11 +1,15 @@
-"""Read fetch artifacts, run the members parser, write a MonthlyDataset.
+"""Read fetch artifacts, run channel parsers, write a MonthlyDataset.
 
 Input layout matches ``clash-reporter fetch``:
 
 ```text
 <input>/
-  members.json    # list of Discord message objects
-  wars.json       # optional, ignored until that parser lands
+  members.json       # required
+  wars.json          # parsed when present
+  cwl.json
+  clan-games.json
+  capital.json
+  donations.json
   manifest.json      # optional; supplies month_key when --month is omitted
 ```
 
@@ -28,12 +32,22 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from clash_reporter.aggregation.monthly_summary import MEMBERS_ONLY_NOTE, build_monthly_dataset
+from clash_reporter.aggregation.activity import ActivityCoverage
+from clash_reporter.aggregation.monthly_summary import (
+    MEMBERS_ONLY_NOTE,
+    build_monthly_dataset,
+    event_in_window,
+)
 from clash_reporter.collection.capture import MANIFEST_FILENAME, dump_json
 from clash_reporter.config import DATA_CHANNELS
 from clash_reporter.models import MonthlyDataset
-from clash_reporter.parsers.base import DomainEvent, IgnoredMessage, parse_all
+from clash_reporter.parsers.base import DomainEvent, IgnoredMessage, Parser, parse_all
+from clash_reporter.parsers.capital import CapitalParser
+from clash_reporter.parsers.clan_games import ClanGamesParser
+from clash_reporter.parsers.cwl import CwlParser
+from clash_reporter.parsers.donations import DonationsParser
 from clash_reporter.parsers.members import MembersParser
+from clash_reporter.parsers.wars import WarsParser
 from clash_reporter.window import ReportingWindow, resolve_month
 
 __all__ = [
@@ -118,18 +132,33 @@ def normalize_capture(
 
     messages = load_raw_messages(members_path)
     outcome = parse_all(MembersParser(), messages)
-    in_window = [event for event in outcome.events if window.contains(event.occurred_at)]
-    unused = _unused_channel_files(input_dir)
+    parsed_channels = [MEMBERS_CHANNEL_NAME]
+    coverage = ActivityCoverage()
+    for name in DATA_CHANNELS:
+        if name == MEMBERS_CHANNEL_NAME:
+            continue
+        path = input_dir / f"{name}.json"
+        if not path.is_file():
+            continue
+        channel_outcome = _parse_channel_file(name, load_raw_messages(path))
+        outcome = outcome.extend(channel_outcome)
+        parsed_channels.append(name)
+        coverage = _with_channel(coverage, name)
+    in_window = [event for event in outcome.events if event_in_window(event, window)]
+    missing = _missing_channel_files(input_dir)
     extra_notes = [note for note in (_timezone_mismatch_note(input_dir, window),) if note]
     dataset = build_monthly_dataset(
         in_window,
         window,
         diagnostics=outcome.diagnostics,
-        unused_channels=unused,
+        missing_channels=missing,
+        coverage=coverage,
         extra_notes=extra_notes,
     )
-    events_payload = _events_payload(in_window, window)
-    diagnostics_payload = _diagnostics_payload(outcome.diagnostics, unused)
+    events_payload = _events_payload(in_window, window, parsed_channels)
+    diagnostics_payload = _diagnostics_payload(
+        outcome.diagnostics, parsed_channels, missing, coverage
+    )
 
     events_path = output_dir / "events.json"
     dataset_path = output_dir / "monthly_players.json"
@@ -176,29 +205,73 @@ def _timezone_mismatch_note(input_dir: Path, window: ReportingWindow) -> str | N
     return f"Fetch manifest timezone is {timezone}; eligible_days used {window.timezone}."
 
 
-def _unused_channel_files(input_dir: Path) -> list[str]:
-    unused: list[str] = []
+_CHANNEL_PARSERS: dict[str, Parser] = {
+    "wars": WarsParser(),
+    "cwl": CwlParser(),
+    "capital": CapitalParser(),
+    "clan-games": ClanGamesParser(),
+    "donations": DonationsParser(),
+}
+
+
+def _parse_channel_file(name: str, messages: Sequence[Mapping[str, Any]]) -> Any:
+    parser = _CHANNEL_PARSERS[name]
+    if isinstance(parser, WarsParser | CwlParser):
+        return parser.parse_channel(messages)
+    return parse_all(parser, messages)
+
+
+def _with_channel(coverage: ActivityCoverage, name: str) -> ActivityCoverage:
+    flags = {
+        "wars": "wars",
+        "cwl": "cwl",
+        "clan-games": "clan_games",
+        "capital": "capital",
+        "donations": "donations",
+    }
+    field = flags[name]
+    return ActivityCoverage(**{**asdict(coverage), field: True})
+
+
+def _missing_channel_files(input_dir: Path) -> list[str]:
+    missing: list[str] = []
     for name in DATA_CHANNELS:
         if name == MEMBERS_CHANNEL_NAME:
             continue
-        if (input_dir / f"{name}.json").is_file():
-            unused.append(name)
-    return unused
+        if not (input_dir / f"{name}.json").is_file():
+            missing.append(name)
+    return missing
 
 
-def _events_payload(events: Sequence[DomainEvent], window: ReportingWindow) -> dict[str, Any]:
+def _events_payload(
+    events: Sequence[DomainEvent],
+    window: ReportingWindow,
+    parsed_channels: Sequence[str],
+) -> dict[str, Any]:
     ordered = sorted(events, key=lambda event: (event.occurred_at, event.event_key))
+    parsers = [_parser_meta(name) for name in parsed_channels]
     return {
         "month_key": window.month_key,
         "month_label": window.month_label,
         "timezone": window.timezone,
-        "parser": {"name": MembersParser.name, "version": MembersParser.version},
+        "parser": parsers[0],
+        "parsers": parsers,
         "events": [event.model_dump(mode="json") for event in ordered],
     }
 
 
+def _parser_meta(channel: str) -> dict[str, str]:
+    if channel == MEMBERS_CHANNEL_NAME:
+        return {"name": MembersParser.name, "version": MembersParser.version}
+    parser = _CHANNEL_PARSERS[channel]
+    return {"name": parser.name, "version": parser.version}
+
+
 def _diagnostics_payload(
-    diagnostics: Sequence[IgnoredMessage], unused_channels: Sequence[str]
+    diagnostics: Sequence[IgnoredMessage],
+    parsed_channels: Sequence[str],
+    missing_channels: Sequence[str],
+    coverage: ActivityCoverage,
 ) -> dict[str, Any]:
     ignored = [asdict(item) for item in diagnostics]
     ignored.sort(
@@ -208,10 +281,17 @@ def _diagnostics_payload(
             str(item.get("detail") or ""),
         )
     )
+    members_only = not coverage.any_parsed
     return {
-        "members_only": True,
-        "note": MEMBERS_ONLY_NOTE,
-        "unused_channels": list(unused_channels),
+        "members_only": members_only,
+        "note": (
+            MEMBERS_ONLY_NOTE
+            if members_only
+            else "Parsed every channel file present in the capture."
+        ),
+        "parsed_channels": list(parsed_channels),
+        "missing_channels": list(missing_channels),
+        "unused_channels": [],
         "ignored_messages": ignored,
     }
 

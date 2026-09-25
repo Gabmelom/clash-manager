@@ -96,11 +96,11 @@ mypy                               # types (strict)
 python -m clash_reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
 ```
 
-`clash-reporter normalize` is a **members-only** slice of issue #11. It reads a
-`fetch` directory, runs the `#members` parser, reconstructs membership, and
-writes a `MonthlyDataset` that `report --dry-run` accepts. War, CWL, Clan Games,
-capital, and donation fields stay `None` (missing) until those parsers land —
-never treat them as observed zeros. See `docs/DEVELOPMENT.md`.
+`clash-reporter normalize` reads a `fetch` directory, parses every channel file
+that is present (`members`, `wars`, `cwl`, `clan-games`, `capital`, `donations`),
+reconstructs membership, and writes a `MonthlyDataset` that `report --dry-run`
+accepts. A missing channel file leaves that family's metrics `None` (unknown),
+never an observed zero. See `docs/DEVELOPMENT.md`.
 
 Run `ruff check .`, `mypy`, and `pytest` before opening a pull request.
 

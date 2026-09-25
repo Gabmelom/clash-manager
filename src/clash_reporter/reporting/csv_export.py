@@ -3,8 +3,8 @@
 Column order is the list under "Full-data attachment" in ``docs/REPORT_SPEC.md``.
 Missing values stay blank: ``None`` is unknown and is never written as ``0``.
 
-Donated and Received have no field on ``MonthlyPlayerSummary`` yet (donation
-logs are name-only and are not aggregated). Those columns are present and empty.
+Donated and Received come from ``MonthlyPlayerSummary.donations`` and stay
+blank when that log was not parsed. They do not affect the composite score.
 Flags are the review reasons that placed the member in Needs Review.
 """
 
@@ -73,8 +73,8 @@ def _row(player: RankedPlayer) -> dict[str, str]:
         "Clan Games Points": _cell(summary.clan_games.points),
         "Capital Contribution": _cell(summary.capital.contribution),
         "Raid Attacks": _cell(summary.capital.raid_attacks),
-        "Donated": "",
-        "Received": "",
+        "Donated": _cell(summary.donations.donated),
+        "Received": _cell(summary.donations.received),
         "Flags": "; ".join(player.review_reasons),
     }
 

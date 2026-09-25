@@ -1,16 +1,22 @@
-"""Build a ``MonthlyDataset`` from members events.
+"""Build a ``MonthlyDataset`` from parsed events.
 
-Activity families that have no parser yet (regular war, CWL, Clan Games,
-capital, donations) are left missing: optional numeric fields stay ``None``.
-``RegularWar.wars_participated`` and ``Cwl.rounds_in_lineup`` stay at the
-model default of ``0`` because those fields are non-optional ints; the
-dataset ``data_notes`` record that those counts were not parsed.
+Membership still comes only from member logs. Activity metrics are filled from
+war, CWL, Clan Games, capital, and donation events when those channels were
+parsed. A family that was not parsed stays missing (``None``), and the dataset
+notes say so. Observed zeros stay ``0``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
+from clash_reporter.aggregation.activity import (
+    ActivityCoverage,
+    attribute_activity,
+    clan_totals,
+    miss_log_keys,
+    player_activity,
+)
 from clash_reporter.aggregation.membership import (
     MembershipRoster,
     PlayerMembership,
@@ -23,25 +29,37 @@ from clash_reporter.events import (
     PlayerNameChanged,
     PlayerRoleChanged,
 )
-from clash_reporter.models import (
-    Capital,
-    ClanGames,
-    Cwl,
-    Membership,
-    MonthlyDataset,
-    MonthlyPlayerSummary,
-    RegularWar,
-)
+from clash_reporter.models import Membership, MonthlyDataset, MonthlyPlayerSummary
 from clash_reporter.parsers.base import DomainEvent, IgnoredMessage
 from clash_reporter.window import ReportingWindow
 
-__all__ = ["MEMBERS_ONLY_NOTE", "build_monthly_dataset", "latest_display_name"]
+__all__ = [
+    "MEMBERS_ONLY_NOTE",
+    "MISSING_CHANNEL_NOTE",
+    "build_monthly_dataset",
+    "event_in_window",
+    "latest_display_name",
+]
 
 MEMBERS_ONLY_NOTE = (
     "Members-only normalize (partial #11): war, CWL, Clan Games, capital, and "
     "donation parsers are not wired. Per-player attack, Clan Games, and capital "
     "metrics are missing (null), not observed zeros."
 )
+
+_CHANNEL_LABELS = {
+    "wars": "regular war",
+    "cwl": "CWL",
+    "clan-games": "Clan Games",
+    "capital": "capital",
+    "donations": "donation",
+}
+
+
+def MISSING_CHANNEL_NOTE(channel: str) -> str:
+    """Data note when a fetch file was not in the input directory."""
+    label = _CHANNEL_LABELS.get(channel, channel)
+    return f"{channel}.json is missing; {label} metrics are unknown (null), not observed zeros."
 
 
 def latest_display_name(events: Sequence[DomainEvent]) -> str | None:
@@ -61,32 +79,78 @@ def latest_display_name(events: Sequence[DomainEvent]) -> str | None:
     return name
 
 
+def event_in_window(event: DomainEvent, window: ReportingWindow) -> bool:
+    """Whether an event belongs to this report.
+
+    Wars and CWL use ``reporting_month`` (UTC month of war end) when the parser
+    set it. Clan Games uses ``occurred_at``, which the parser sets to the
+    leaderboard edit time (when the snapshot was finalized), not
+    ``occurrence_key`` (the season id) and not message creation. An August
+    season edited on 1 September belongs to September. Every other family
+    uses the event timestamp against the reporting window.
+    """
+    reporting_month = getattr(event, "reporting_month", None)
+    if isinstance(reporting_month, str) and reporting_month:
+        return reporting_month == window.month_key
+    return window.contains(event.occurred_at)
+
+
 def build_monthly_dataset(
     events: Sequence[DomainEvent],
     window: ReportingWindow,
     *,
     diagnostics: Sequence[IgnoredMessage] = (),
-    unused_channels: Sequence[str] = (),
+    missing_channels: Sequence[str] = (),
+    coverage: ActivityCoverage | None = None,
     extra_notes: Sequence[str] = (),
     clan_name: str = "Clan",
 ) -> MonthlyDataset:
-    """Players keyed by tag, membership filled, activity metrics left missing."""
-    member_events = _member_events(events)
+    """Players keyed by tag. Activity is filled when ``coverage`` says it was parsed."""
+    in_window = [event for event in events if event_in_window(event, window)]
+    attributed = attribute_activity(in_window) if coverage is not None else None
+    activity_events = attributed.events if attributed is not None else in_window
+    member_events = _member_events(activity_events)
     roster = reconstruct_membership(member_events, window)
-    events_by_tag = _events_by_tag(events, window)
+    events_by_tag = _events_by_tag(activity_events)
+    war_miss_keys, cwl_miss_keys = miss_log_keys(activity_events)
     players = [
-        _player_summary(membership, events_by_tag.get(tag, ()))
+        _player_summary(
+            membership,
+            events_by_tag.get(tag, ()),
+            coverage,
+            war_miss_keys=war_miss_keys,
+            cwl_miss_keys=cwl_miss_keys,
+        )
         for tag, membership in roster.players.items()
     ]
-    notes = _data_notes(diagnostics, unused_channels, roster, events_by_tag)
+    regular_wars, cwl_rounds, games_done, raid_weekends = (0, 0, False, 0)
+    if coverage is not None:
+        regular_wars, cwl_rounds, games_done, raid_weekends = clan_totals(activity_events)
+        if not coverage.wars:
+            regular_wars = 0
+        if not coverage.cwl:
+            cwl_rounds = 0
+        if not coverage.clan_games:
+            games_done = False
+        if not coverage.capital:
+            raid_weekends = 0
+    notes = _data_notes(
+        diagnostics,
+        missing_channels,
+        coverage,
+        roster,
+        events_by_tag,
+        () if attributed is None else attributed.unmatched_names,
+        () if attributed is None else attributed.ambiguous_names,
+    )
     notes.extend(extra_notes)
     return MonthlyDataset(
         month_label=window.month_label,
         clan_name=clan_name,
-        regular_wars=0,
-        cwl_rounds=0,
-        clan_games_completed=False,
-        raid_weekends=0,
+        regular_wars=regular_wars,
+        cwl_rounds=cwl_rounds,
+        clan_games_completed=games_done,
+        raid_weekends=raid_weekends,
         players=players,
         data_notes=notes,
     )
@@ -101,13 +165,9 @@ def _member_events(events: Sequence[DomainEvent]) -> list[MemberEvent]:
     return members
 
 
-def _events_by_tag(
-    events: Sequence[DomainEvent], window: ReportingWindow
-) -> dict[str, list[DomainEvent]]:
+def _events_by_tag(events: Sequence[DomainEvent]) -> dict[str, list[DomainEvent]]:
     grouped: dict[str, list[DomainEvent]] = {}
     for event in events:
-        if not window.contains(event.occurred_at):
-            continue
         tag = event.player_tag
         if tag is None:
             continue
@@ -116,7 +176,12 @@ def _events_by_tag(
 
 
 def _player_summary(
-    membership: PlayerMembership, events: Sequence[DomainEvent]
+    membership: PlayerMembership,
+    events: Sequence[DomainEvent],
+    coverage: ActivityCoverage | None,
+    *,
+    war_miss_keys: set[str] | None = None,
+    cwl_miss_keys: set[str] | None = None,
 ) -> MonthlyPlayerSummary:
     name = latest_display_name(events)
     warnings: list[str] = []
@@ -128,6 +193,15 @@ def _player_summary(
             "left and rejoined during the month; ranking uses presence at month "
             "start/end, not mid-month gaps"
         )
+    if coverage is None:
+        war, cwl, games, capital, donations = player_activity((), coverage=ActivityCoverage())
+    else:
+        war, cwl, games, capital, donations = player_activity(
+            events,
+            coverage=coverage,
+            war_miss_keys=war_miss_keys,
+            cwl_miss_keys=cwl_miss_keys,
+        )
     return MonthlyPlayerSummary(
         player_tag=membership.player_tag,
         current_display_name=name,
@@ -138,26 +212,43 @@ def _player_summary(
             left_on=membership.left_on,
             joined_on=membership.joined_on,
         ),
-        regular_war=RegularWar(),
-        cwl=Cwl(),
-        clan_games=ClanGames(points=None),
-        capital=Capital(contribution=None, raid_attacks=None),
+        regular_war=war,
+        cwl=cwl,
+        clan_games=games,
+        capital=capital,
+        donations=donations,
         warnings=warnings,
     )
 
 
 def _data_notes(
     diagnostics: Sequence[IgnoredMessage],
-    unused_channels: Sequence[str],
+    missing_channels: Sequence[str],
+    coverage: ActivityCoverage | None,
     roster: MembershipRoster,
     events_by_tag: dict[str, list[DomainEvent]],
+    unmatched_names: Sequence[str],
+    ambiguous_names: Sequence[str],
 ) -> list[str]:
-    notes = [MEMBERS_ONLY_NOTE]
+    notes: list[str] = []
+    if coverage is None:
+        notes.append(MEMBERS_ONLY_NOTE)
+    else:
+        for name in missing_channels:
+            notes.append(MISSING_CHANNEL_NOTE(name))
     if diagnostics:
-        notes.append(_summarize_diagnostics(diagnostics))
-    for name in unused_channels:
+        notes.append(_summarize_diagnostics(diagnostics, members_only=coverage is None))
+    if unmatched_names:
+        names = ", ".join(unmatched_names)
         notes.append(
-            f"{name}.json is present but not parsed; that log family's parser is not wired yet."
+            f"Unmatched display names (no unique member tag): {names}. "
+            "Their activity was not assigned to a player."
+        )
+    if ambiguous_names:
+        names = ", ".join(ambiguous_names)
+        notes.append(
+            f"Ambiguous display names (more than one member tag): {names}. "
+            "Their activity was not assigned to a player."
         )
     inferred = sum(
         1
@@ -174,9 +265,10 @@ def _data_notes(
     return notes
 
 
-def _summarize_diagnostics(diagnostics: Sequence[IgnoredMessage]) -> str:
+def _summarize_diagnostics(diagnostics: Sequence[IgnoredMessage], *, members_only: bool) -> str:
     counts: dict[str, int] = {}
     for item in diagnostics:
         counts[item.reason_code] = counts.get(item.reason_code, 0) + 1
     parts = [f"{count} {code}" for code, count in sorted(counts.items())]
-    return "Ignored #members messages: " + ", ".join(parts) + "."
+    prefix = "Ignored #members messages" if members_only else "Parser diagnostics"
+    return prefix + ": " + ", ".join(parts) + "."

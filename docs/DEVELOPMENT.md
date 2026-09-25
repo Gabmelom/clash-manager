@@ -92,10 +92,10 @@ Notes:
   Use it to exercise the command end to end against a local stub; it is not needed for a
   real capture.
 
-## Members-only `normalize` (partial #11)
+## `normalize`
 
 `clash-reporter normalize` is the local path from a Discord `fetch` directory to
-`report --dry-run`. It is **not** the full aggregation issue: only `#members` is parsed.
+`report --dry-run`. It parses every channel file that is present.
 
 ```bash
 clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
@@ -104,8 +104,10 @@ clash-reporter report --input ./artifacts/normalized/monthly_players.json --dry-
 
 What it does:
 
-- Reads `members.json` (same layout `fetch` writes) and optional `manifest.json` for the month.
-- Parses join / leave / role / name events, de-duplicates by Discord message ID.
+- Reads `members.json` (required) plus `wars.json`, `cwl.json`, `clan-games.json`,
+  `capital.json`, and `donations.json` when those files exist, and optional `manifest.json`.
+- Parses each present channel with that family's parser. War and CWL histories are
+  joined with `parse_channel` so attacks share a war or round key.
 - Reconstructs membership intervals and `eligible_days` in `REPORT_TIMEZONE`
   (the process timezone, not a timezone stored on the fetch manifest). A
   mismatch with the manifest timezone is recorded as a data note.
@@ -117,16 +119,17 @@ What it does:
 
 What it deliberately does not do:
 
-- War, CWL, Clan Games, capital, and donation parsers are not wired. Those per-player
-  fields stay `None` (missing). Dataset war counts are `0` only because nothing was parsed,
-  not because a war month was observed to be empty. `report --dry-run` must not flag anyone
-  for review solely from that gap.
-- Name→tag attribution and the Clash of Clans API stay deferred (`AGENTS.md`).
+- A missing channel file leaves that family's per-player metrics `None`. Dataset war
+  counts stay `0` in that case because nothing was parsed, and a data note says the
+  file is missing. `report --dry-run` must not flag anyone for review solely from that gap.
+- Name-only rows match a member tag only when the display name is unique in the
+  window's tag-bearing logs. Duplicate or unknown names stay diagnostics. There is
+  no Clash of Clans API client (`AGENTS.md`).
 
 `--month` is optional when the fetch manifest is present. Pass `--month YYYY-MM` to
 override it, or when normalizing a directory that has `members.json` but no manifest.
 
-Full aggregation (issue #11) starts from this slice once the other log-family parsers land.
+A capture that only has `members.json` still normalizes. The other families stay unknown until their files are present.
 
 ## ClashPerk's source is the payload reference
 
