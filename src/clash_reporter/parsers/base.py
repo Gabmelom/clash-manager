@@ -27,6 +27,7 @@ __all__ = [
     "IgnoredMessage",
     "ParseOutcome",
     "Parser",
+    "DomainEvent",
     "deduplicate_events",
     "extract_player_tag",
     "is_valid_player_tag",

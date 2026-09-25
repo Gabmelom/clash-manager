@@ -71,6 +71,7 @@ class PlayerNameChanged(_EventBase):
 
 class PlayerRoleChanged(_EventBase):
     event_type: Literal["PlayerRoleChanged"] = "PlayerRoleChanged"
+    player_name: str
     new_role: str
     # ClashPerk's role-change log only emits the new role.
     old_role: str | None = None

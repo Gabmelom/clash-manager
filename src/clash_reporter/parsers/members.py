@@ -199,6 +199,7 @@ class MembersParser:
                 events=[
                     PlayerRoleChanged(
                         player_tag=player_tag,
+                        player_name=player_name or "",
                         old_role=None,
                         new_role=kind.payload or "",
                         occurred_at=occurred_at,
