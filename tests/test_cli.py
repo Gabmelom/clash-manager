@@ -270,6 +270,241 @@ def test_fetch_rejects_an_unknown_channel_name(
         cli.main(["fetch", "--channel", "cp-nonsense", "--output", str(tmp_path)])
 
 
+REPORT_CHANNEL = "900000000000000009"
+
+
+def test_dry_run_never_performs_a_network_call(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+
+    def explode(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("dry-run must not touch the network")
+
+    monkeypatch.setattr(httpx.Client, "request", explode)
+    monkeypatch.setattr(cli, "DiscordClient", explode)
+
+    assert cli.main(["report", "--input", str(SAMPLE_DATASET), "--dry-run"]) == 0
+    assert "Monthly Report" in capsys.readouterr().out
+
+
+def test_post_without_discord_configuration_exits_and_posts_nothing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def explode(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("missing configuration must not open a client")
+
+    monkeypatch.setattr(cli, "DiscordClient", explode)
+
+    missing_token = cli.main(["report", "--input", str(SAMPLE_DATASET), "--post"])
+    assert missing_token == 2
+    assert "DISCORD_BOT_TOKEN" in capsys.readouterr().err
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    missing_channel = cli.main(["report", "--input", str(SAMPLE_DATASET), "--post"])
+    assert missing_channel == 2
+    assert "DISCORD_REPORT_CHANNEL_ID" in capsys.readouterr().err
+
+
+def test_post_sends_the_report_and_csv_through_a_mocked_transport(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "1"})
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        assert token == TOKEN
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    assert cli.main(["report", "--input", str(SAMPLE_DATASET), "--post"]) == 0
+    assert len(seen) == 1
+    assert seen[0].method == "POST"
+    assert seen[0].url.path.endswith(f"/channels/{REPORT_CHANNEL}/messages")
+    body = seen[0].read().decode()
+    assert "clan-report.csv" in body
+    assert "Player Tag" in body
+    assert "Maple Legends" in body
+    assert "Posted 1 message" in capsys.readouterr().out
+
+
+def test_post_surfaces_a_partial_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(200, json={"id": "1"})
+        return httpx.Response(500, json={"message": "upstream down"})
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        "clash_reporter.reporting.post_report.split_report",
+        lambda _report: ["first section", "second section"],
+    )
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(["report", "--input", str(SAMPLE_DATASET), "--post"])
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "accepted 1 of 2" in captured.err
+    assert "already posted" in captured.err
+    assert calls == 2
+
+
+def test_run_without_post_fetches_and_prints_without_posting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.method)
+        if request.method == "POST":
+            raise AssertionError("run without --post must not post")
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+        ]
+    )
+    assert exit_code == 0
+    assert seen == ["GET"]
+    assert "Monthly Report" in capsys.readouterr().out
+    assert (tmp_path / "normalized" / "monthly_players.json").is_file()
+
+
+def test_run_post_sends_the_report_and_csv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "1"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--post",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+        ]
+    )
+    assert exit_code == 0
+    posts = [request for request in seen if request.method == "POST"]
+    assert [request.method for request in seen] == ["GET", "POST"]
+    assert posts[0].url.path.endswith(f"/channels/{REPORT_CHANNEL}/messages")
+    body = posts[0].read().decode()
+    assert "clan-report.csv" in body
+    assert "Player Tag" in body
+    assert "Posted 1 message" in capsys.readouterr().out
+
+
+def test_run_post_without_report_channel_posts_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def explode(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("run --post must fail closed before opening a client")
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", explode)
+
+    exit_code = cli.main(["run", "--month", "2026-08", "--post", "--raw-output", str(tmp_path)])
+    assert exit_code == 2
+    assert "DISCORD_REPORT_CHANNEL_ID" in capsys.readouterr().err
+    assert not list(tmp_path.iterdir())
+
+
 def test_fetch_rejects_an_invalid_month(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

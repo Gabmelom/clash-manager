@@ -37,14 +37,22 @@ python -m clash_reporter fetch --month 2026-08 --output ./artifacts/raw
 python -m clash_reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
 python -m clash_reporter report --input ./artifacts/normalized/monthly_players.json --dry-run
 python -m clash_reporter report --month 2026-08 --dry-run
-python -m clash_reporter report --month previous --post
+python -m clash_reporter report --input ./artifacts/normalized/monthly_players.json --post
 ```
 
-A single end-to-end command should eventually be enough for GitHub Actions:
+`--dry-run` prints the report and does not contact Discord. `--post` requires
+`DISCORD_BOT_TOKEN` and `DISCORD_REPORT_CHANNEL_ID`, splits the text on section
+boundaries when it exceeds 2000 characters, and attaches a CSV of every
+ranking-eligible member.
+
+A single end-to-end command is what the monthly workflow calls:
 
 ```text
 python -m clash_reporter run --month previous --post
 ```
+
+`run` fetches, normalizes, and renders. Without `--post` it prints the report
+and does not post. The scheduled workflow file itself is a later issue.
 
 ## Capture raw payloads
 

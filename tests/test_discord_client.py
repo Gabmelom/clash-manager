@@ -302,6 +302,93 @@ def test_message_timestamp_reads_the_discord_timestamp(
         message_timestamp({"id": "1"})
 
 
+def test_post_message_sends_json_content() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "99", "content": "hello"})
+
+    with build_client(handler) as client:
+        posted = client.post_message("555", "hello")
+
+    assert posted["id"] == "99"
+    request = seen[0]
+    assert request.method == "POST"
+    assert request.url.path == "/api/v10/channels/555/messages"
+    assert request.headers["Authorization"] == f"Bot {TOKEN}"
+    assert request.read() == b'{"content":"hello"}'
+
+
+def test_post_message_uploads_a_multipart_attachment() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "100"})
+
+    payload = b"Player Tag,Player Name\n#AAA,Aurora\n"
+    with build_client(handler) as client:
+        client.post_message(
+            "555",
+            "report",
+            attachment=("clan-report.csv", payload, "text/csv; charset=utf-8"),
+        )
+
+    request = seen[0]
+    body = request.read()
+    content_type = request.headers["content-type"]
+    assert content_type.startswith("multipart/form-data")
+    assert b"payload_json" in body
+    assert b"clan-report.csv" in body
+    assert b'"content": "report"' in body or b'"content":"report"' in body
+    assert payload in body
+    assert TOKEN not in body.decode()
+
+
+def test_post_message_counts_emoji_in_utf16_code_units() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("over-long content must not be sent")
+
+    # 1001 trophies: Python len is 1001, Discord counts 2002 UTF-16 code units.
+    with build_client(handler) as client:
+        with pytest.raises(ValueError, match="UTF-16"):
+            client.post_message("555", "🏆" * 1001)
+
+
+def test_post_message_rejects_content_over_the_discord_limit() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("over-long content must not be sent")
+
+    with build_client(handler) as client:
+        with pytest.raises(ValueError, match="2000"):
+            client.post_message("555", "x" * 2001)
+
+
+def test_post_message_retries_rate_limits() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"}, json={})
+        return httpx.Response(200, json={"id": "1"})
+
+    with build_client(handler) as client:
+        assert client.post_message("555", "ok")["id"] == "1"
+    assert calls == 2
+
+
+def test_post_forbidden_names_send_permission() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"message": "Missing Access"})
+
+    with build_client(handler) as client:
+        with pytest.raises(DiscordForbiddenError, match="Send Messages"):
+            client.post_message("555", "hello")
+
+
 def test_history_requires_an_aware_boundary() -> None:
     with build_client(lambda request: httpx.Response(200, json=[])) as client:
         with pytest.raises(ValueError, match="timezone-aware"):

@@ -1,10 +1,11 @@
 """Command-line entry point.
 
-Three commands exist today:
+Four commands exist today:
 
 ``report``
-    Renders a monthly report from a normalized dataset JSON file. Parse-free,
-    secret-free, and deterministic, so it runs in CI and locally without Discord.
+    Renders a monthly report from a normalized dataset JSON file. ``--dry-run``
+    prints it and never touches the network. ``--post`` sends it to
+    ``#clan-reports``.
 
 ``fetch``
     Downloads raw ClashPerk payloads for a reporting month into JSON files so
@@ -14,6 +15,10 @@ Three commands exist today:
     Reads a fetch directory, runs the members parser, and writes a
     ``MonthlyDataset`` plus events and parser diagnostics. This is a members-only
     slice of issue #11: war/CWL/games/capital/donation fields stay missing.
+
+``run``
+    Fetches, normalizes, and renders one month. ``--post`` also delivers the
+    report. Without it, the report is printed and nothing is posted.
 
 Each command stays thin: window resolution, transport, capture, parsing, and
 aggregation live in their own modules.
@@ -34,7 +39,13 @@ from clash_reporter.collection.capture import MANIFEST_FILENAME
 from clash_reporter.config import DATA_CHANNELS, Settings
 from clash_reporter.discord_client import DiscordClient, DiscordError
 from clash_reporter.models import MonthlyDataset
-from clash_reporter.reporting import render_report
+from clash_reporter.reporting import (
+    ReportPostError,
+    ReportSplitError,
+    post_monthly_report,
+    render_csv,
+    render_report,
+)
 from clash_reporter.scoring import rank_players
 from clash_reporter.window import InvalidMonthError, ReportingWindow, resolve_month
 
@@ -50,6 +61,25 @@ def _fail(message: str) -> int:
     return 2
 
 
+def _ranked_report(dataset: MonthlyDataset, settings: Settings, top_n: int) -> tuple[str, str]:
+    ranked = rank_players(dataset, settings.scoring)
+    return render_report(dataset, ranked, top_n=top_n), render_csv(ranked)
+
+
+def _post_report(settings: Settings, client: DiscordClient, report: str, csv_text: str) -> int:
+    channel_id = settings.discord_report_channel_id
+    if not channel_id:
+        return _fail("Missing required Discord configuration: DISCORD_REPORT_CHANNEL_ID")
+    try:
+        messages = post_monthly_report(client, channel_id, report, csv_text)
+    except ReportPostError as exc:
+        return _fail(str(exc))
+    except (DiscordError, ReportSplitError) as exc:
+        return _fail(str(exc))
+    print(f"Posted {len(messages)} message(s) to channel {channel_id}.")
+    return 0
+
+
 def _cmd_report(args: argparse.Namespace) -> int:
     settings = Settings()
     dataset = _load_dataset(args.input)
@@ -59,17 +89,17 @@ def _cmd_report(args: argparse.Namespace) -> int:
         except InvalidMonthError as exc:
             return _fail(str(exc))
         dataset = dataset.model_copy(update={"month_label": window.month_label})
-    ranked = rank_players(dataset, settings.scoring)
-    report = render_report(dataset, ranked, top_n=args.top)
+    report, csv_text = _ranked_report(dataset, settings, args.top)
     if args.dry_run:
         print(report)
         return 0
     try:
         settings.require_discord()
+        token = settings.require_bot_token()
     except RuntimeError as exc:
         return _fail(str(exc))
-    print("Posting to Discord is not implemented yet; use --dry-run.", file=sys.stderr)
-    return 2
+    with DiscordClient(token, base_url=settings.discord_api_base_url) as client:
+        return _post_report(settings, client, report, csv_text)
 
 
 def _cmd_fetch(args: argparse.Namespace) -> int:
@@ -124,6 +154,44 @@ def _cmd_normalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run(args: argparse.Namespace) -> int:
+    settings = Settings()
+    try:
+        window = resolve_month(args.month, timezone=settings.report_timezone)
+        if args.post:
+            settings.require_discord()
+        token = settings.require_bot_token()
+        channels = settings.require_data_channels()
+    except (InvalidMonthError, RuntimeError) as exc:
+        return _fail(str(exc))
+
+    print(
+        f"Running {window.month_label} ({window.month_key}) in {window.timezone}"
+        + ("" if window.is_complete() else " - month still in progress")
+    )
+    with DiscordClient(token, base_url=settings.discord_api_base_url) as client:
+        try:
+            capture = capture_channels(
+                client,
+                channels=channels,
+                window=window,
+                output_dir=args.raw_output,
+                sanitize=False,
+            )
+            result = normalize_capture(args.raw_output, args.normalized_output, window=window)
+        except (ChannelCaptureError, DiscordError, NormalizeError) as exc:
+            return _fail(str(exc))
+        for channel in capture.channels:
+            print(f"  {channel.name}: {channel.message_count} messages -> {channel.path}")
+        print(f"  {result.player_count} players -> {result.dataset_path}")
+        dataset = result.dataset.model_copy(update={"month_label": window.month_label})
+        report, csv_text = _ranked_report(dataset, settings, args.top)
+        if not args.post:
+            print(report)
+            return 0
+        return _post_report(settings, client, report, csv_text)
+
+
 def _resolve_normalize_window(args: argparse.Namespace, timezone: str) -> ReportingWindow:
     if args.month:
         return resolve_month(args.month, timezone=timezone)
@@ -156,10 +224,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Label the report from a reporting window: YYYY-MM, 'previous', or 'current'.",
     )
     report.add_argument("--top", type=int, default=5, help="Number of top performers to show.")
-    report.add_argument(
+    mode = report.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the report instead of posting to Discord.",
+        help="Print the report. Does not contact Discord.",
+    )
+    mode.add_argument(
+        "--post",
+        action="store_true",
+        help="Post the report and a CSV attachment to DISCORD_REPORT_CHANNEL_ID.",
     )
     report.set_defaults(func=_cmd_report)
 
@@ -229,6 +303,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     normalize.set_defaults(func=_cmd_normalize)
+
+    run = subparsers.add_parser(
+        "run",
+        help="Fetch, normalize, and render one month. Pass --post to deliver it.",
+    )
+    run.add_argument(
+        "--month",
+        default="previous",
+        help="Reporting month: YYYY-MM, 'previous', or 'current'. Defaults to previous.",
+    )
+    run.add_argument(
+        "--raw-output",
+        type=Path,
+        default=DEFAULT_RAW_OUTPUT,
+        help=f"Directory for raw channel JSON (default: {DEFAULT_RAW_OUTPUT}).",
+    )
+    run.add_argument(
+        "--normalized-output",
+        type=Path,
+        default=DEFAULT_NORMALIZED_OUTPUT,
+        help=(f"Directory for the normalized dataset (default: {DEFAULT_NORMALIZED_OUTPUT})."),
+    )
+    run.add_argument("--top", type=int, default=5, help="Number of top performers to show.")
+    run.add_argument(
+        "--post",
+        action="store_true",
+        help=(
+            "Post the report and a CSV attachment. Without this flag the report is "
+            "printed and nothing is posted."
+        ),
+    )
+    run.set_defaults(func=_cmd_run)
 
     parser.set_defaults(verbose=False)
     return parser

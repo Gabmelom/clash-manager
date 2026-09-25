@@ -9,6 +9,20 @@ from __future__ import annotations
 from clash_reporter.models import MonthlyDataset, MonthlyPlayerSummary
 from clash_reporter.scoring.rankings import RankedPlayer, RankedReport
 
+SECTION_TOP = "🏆 Top Performers"
+SECTION_REVIEW = "⚠️ Needs Review"
+SECTION_NEW = "🆕 New Members"
+SECTION_DEPARTED = "👋 Departed Members"
+SECTION_NOTES = "ℹ️ Data notes"
+
+SECTION_HEADERS: tuple[str, ...] = (
+    SECTION_TOP,
+    SECTION_REVIEW,
+    SECTION_NEW,
+    SECTION_DEPARTED,
+    SECTION_NOTES,
+)
+
 
 def _pct(value: float | None) -> str:
     return f"{value:.0f}%" if value is not None else "n/a"
@@ -70,7 +84,7 @@ def render_report(
     lines.append(f"{dataset.raid_weekends} Raid Weekends")
 
     lines.append("")
-    lines.append("🏆 Top Performers")
+    lines.append(SECTION_TOP)
     if ranked.ranked:
         for index, player in enumerate(ranked.ranked[:top_n], start=1):
             lines.extend(_format_top_player(index, player))
@@ -80,7 +94,7 @@ def render_report(
     review = ranked.review
     if review:
         lines.append("")
-        lines.append("⚠️ Needs Review")
+        lines.append(SECTION_REVIEW)
         for player in review:
             lines.append(f"{player.summary.current_display_name} ({player.summary.player_tag})")
             for reason in player.review_reasons:
@@ -88,19 +102,19 @@ def render_report(
 
     if ranked.new_members:
         lines.append("")
-        lines.append("🆕 New Members")
+        lines.append(SECTION_NEW)
         for member in ranked.new_members:
             lines.append(_member_line(member, departed=False))
 
     if ranked.departed_members:
         lines.append("")
-        lines.append("👋 Departed Members")
+        lines.append(SECTION_DEPARTED)
         for member in ranked.departed_members:
             lines.append(_member_line(member, departed=True))
 
     if dataset.data_notes:
         lines.append("")
-        lines.append("ℹ️ Data notes")
+        lines.append(SECTION_NOTES)
         for note in dataset.data_notes:
             lines.append(f"- {note}")
 
