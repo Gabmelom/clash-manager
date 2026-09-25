@@ -340,8 +340,7 @@ def _needs_name(event: DomainEvent) -> bool:
         | CwlMissedAttack
         | CwlLineupChange
         | ClanGamesResult
-        | DonationSummary
-        | CapitalWeeklySummaryRow,
+        | DonationSummary,
     )
 
 

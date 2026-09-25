@@ -343,6 +343,91 @@ def test_multi_channel_normalize_fills_activity_metrics(
     assert "1 Raid Weekends" in printed
 
 
+def test_cross_month_clan_games_follows_edit_time_not_season(
+    clashperk_message: Message, tmp_path: Path
+) -> None:
+    """August season edited on 1 September belongs to September, not August."""
+    board = clashperk_message("clan-games/cross-month-leaderboard.json")
+    august = write_raw_capture(
+        tmp_path / "august",
+        _sample_messages(clashperk_message),
+        extra_channels={"clan-games": [board]},
+    )
+    september_member = members_message(
+        clashperk_message("members/role-change.json"),
+        at=utc(2026, 9, 2),
+        tag=AURORA,
+        name="Aurora",
+        message_id="sept-aurora",
+    )
+    september = write_raw_capture(
+        tmp_path / "september",
+        [september_member],
+        month_key="2026-09",
+        extra_channels={"clan-games": [board]},
+    )
+    august_result = normalize_capture(august, tmp_path / "out-august", window=AUGUST)
+    september_window = month_window(2026, 9, timezone=TORONTO)
+    september_result = normalize_capture(
+        september, tmp_path / "out-september", window=september_window
+    )
+    august_aurora = next(
+        player for player in august_result.dataset.players if player.player_tag == AURORA
+    )
+    september_aurora = next(
+        player for player in september_result.dataset.players if player.player_tag == AURORA
+    )
+    assert august_result.dataset.clan_games_completed is False
+    assert august_aurora.clan_games.points is None
+    assert september_result.dataset.clan_games_completed is True
+    assert september_aurora.clan_games.points == 4000
+
+
+def test_empty_wars_file_is_observed_empty_participation(
+    clashperk_message: Message, tmp_path: Path
+) -> None:
+    raw = write_raw_capture(
+        tmp_path / "raw",
+        _sample_messages(clashperk_message),
+        extra_channels={"wars": []},
+    )
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST)
+    assert result.dataset.regular_wars == 0
+    notes = " ".join(result.dataset.data_notes)
+    assert "wars.json is missing" not in notes
+    assert "not wired" not in notes
+    for player in result.dataset.players:
+        assert player.regular_war.wars_participated == 0
+        assert player.regular_war.attacks_used is None
+        assert player.regular_war.attacks_missed is None
+
+
+def test_coarsest_donation_interval_wins(clashperk_message: Message, tmp_path: Path) -> None:
+    daily = clashperk_message("donations/daily.json")
+    weekly = deepcopy(daily)
+    weekly["id"] = "1538000000000000002"
+    weekly["embeds"][0]["description"] = weekly["embeds"][0]["description"].replace(
+        "Daily Donations", "Weekly Donations"
+    )
+    weekly["embeds"][0]["description"] = weekly["embeds"][0]["description"].replace(
+        "`  8420  5210 `", "`  1111  2222 `"
+    )
+    monthly = deepcopy(clashperk_message("donations/monthly-summary.json"))
+    monthly["id"] = "1538000000000000003"
+    monthly["embeds"][0]["description"] = monthly["embeds"][0]["description"].replace(
+        "`  8420  5210 `", "`  9999  8888 `"
+    )
+    raw = write_raw_capture(
+        tmp_path / "raw",
+        _sample_messages(clashperk_message),
+        extra_channels={"donations": [daily, weekly, monthly]},
+    )
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST)
+    aurora = next(player for player in result.dataset.players if player.player_tag == AURORA)
+    assert aurora.donations.donated == 9999
+    assert aurora.donations.received == 8888
+
+
 def test_manifest_timezone_mismatch_is_a_data_note(
     clashperk_message: Message, tmp_path: Path
 ) -> None:

@@ -83,8 +83,11 @@ def event_in_window(event: DomainEvent, window: ReportingWindow) -> bool:
     """Whether an event belongs to this report.
 
     Wars and CWL use ``reporting_month`` (UTC month of war end) when the parser
-    set it. Every other family uses the event timestamp against the reporting
-    window.
+    set it. Clan Games uses ``occurred_at``, which the parser sets to the
+    leaderboard edit time (when the snapshot was finalized), not
+    ``occurrence_key`` (the season id) and not message creation. An August
+    season edited on 1 September belongs to September. Every other family
+    uses the event timestamp against the reporting window.
     """
     reporting_month = getattr(event, "reporting_month", None)
     if isinstance(reporting_month, str) and reporting_month:
@@ -97,7 +100,6 @@ def build_monthly_dataset(
     window: ReportingWindow,
     *,
     diagnostics: Sequence[IgnoredMessage] = (),
-    unused_channels: Sequence[str] = (),
     missing_channels: Sequence[str] = (),
     coverage: ActivityCoverage | None = None,
     extra_notes: Sequence[str] = (),
@@ -134,7 +136,6 @@ def build_monthly_dataset(
             raid_weekends = 0
     notes = _data_notes(
         diagnostics,
-        unused_channels,
         missing_channels,
         coverage,
         roster,
@@ -222,7 +223,6 @@ def _player_summary(
 
 def _data_notes(
     diagnostics: Sequence[IgnoredMessage],
-    unused_channels: Sequence[str],
     missing_channels: Sequence[str],
     coverage: ActivityCoverage | None,
     roster: MembershipRoster,
@@ -238,10 +238,6 @@ def _data_notes(
             notes.append(MISSING_CHANNEL_NOTE(name))
     if diagnostics:
         notes.append(_summarize_diagnostics(diagnostics, members_only=coverage is None))
-    for name in unused_channels:
-        notes.append(
-            f"{name}.json is present but not parsed; that log family's parser is not wired yet."
-        )
     if unmatched_names:
         names = ", ".join(unmatched_names)
         notes.append(

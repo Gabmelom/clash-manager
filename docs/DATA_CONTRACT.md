@@ -249,7 +249,9 @@ message_edited_at
 
 `occurrence_key` is the Clan Games occurrence from the scoreboard title / button
 `season`. Month attribution uses `message_edited_at` (the snapshot), not the
-message creation timestamp. The parser framework's de-duplication key remains
+message creation timestamp and not the season id. An August season whose
+leaderboard is edited on 1 September belongs to September. The parser
+framework's de-duplication key remains
 `<message_id>:ClanGamesResult:<player_tag>:<row_index>` on the event's
 `event_key` property; it is a different field from this occurrence id.
 
