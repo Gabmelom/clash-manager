@@ -1,4 +1,4 @@
-"""#cp-games parser: Clan Games leaderboard snapshot.
+"""#clan-games parser: Clan Games leaderboard snapshot.
 
 ClashPerk edits one leaderboard message in place (``src/core/clan-games-log.ts``
 and ``src/helper/clan-games.helper.ts``). The payload is a final state, not a

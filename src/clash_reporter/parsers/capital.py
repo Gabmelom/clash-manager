@@ -1,4 +1,4 @@
-"""#cp-capital parser: contribution, raid, and weekly summary.
+"""#capital parser: contribution, raid, and weekly summary.
 
 Per-player Capital Gold Contribution / Raid logs (``src/core/clan-log.ts``)
 carry a tag in the embed title and are the primary source. Amounts stay raw:

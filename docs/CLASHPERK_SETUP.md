@@ -21,12 +21,12 @@ CLASHPERK DATA
 Create:
 
 ```text
-#cp-members
-#cp-wars
-#cp-cwl
-#cp-capital
-#cp-games
-#cp-donations
+#members
+#wars
+#cwl
+#capital
+#clan-games
+#donations
 ```
 
 Create the output channel separately:
@@ -35,7 +35,7 @@ Create the output channel separately:
 #clan-reports
 ```
 
-`#cp-donations` is optional for V1.
+`#donations` is optional for V1.
 
 ## 2. Confirm the clan is linked to ClashPerk
 
@@ -47,12 +47,12 @@ If needed:
 
 Reference: https://docs.clashperk.com/overview/getting-set-up
 
-## 3. Configure `#cp-members`
+## 3. Configure `#members`
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-members
+/setup clan-logs clan:#CLAN_TAG channel:#members
 ```
 
 Enable:
@@ -68,12 +68,12 @@ Purpose:
 - keep display names current while using player tag as identity
 - record promotions / demotions for reporting context
 
-## 4. Configure `#cp-wars`
+## 4. Configure `#wars`
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-wars
+/setup clan-logs clan:#CLAN_TAG channel:#wars
 ```
 
 Enable:
@@ -93,12 +93,12 @@ Purpose:
 
 The per-attack and missed-attack messages are the primary source. The War Embed is supporting context and validation.
 
-## 5. Configure `#cp-cwl`
+## 5. Configure `#cwl`
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-cwl
+/setup clan-logs clan:#CLAN_TAG channel:#cwl
 ```
 
 Enable:
@@ -120,12 +120,12 @@ Purpose:
 
 Do not mix CWL into regular war calculations unless a future scoring policy explicitly chooses to do so.
 
-## 6. Configure `#cp-capital`
+## 6. Configure `#capital`
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-capital
+/setup clan-logs clan:#CLAN_TAG channel:#capital
 ```
 
 Enable:
@@ -140,12 +140,12 @@ Purpose:
 - track raid participation
 - retain weekly summary context
 
-## 7. Configure `#cp-games`
+## 7. Configure `#clan-games`
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-games
+/setup clan-logs clan:#CLAN_TAG channel:#clan-games
 ```
 
 Enable:
@@ -156,12 +156,12 @@ ClashPerk updates one leaderboard message during the Clan Games event. The month
 
 Reference: https://docs.clashperk.com/features/logs
 
-## 8. Configure `#cp-donations` - optional
+## 8. Configure `#donations` - optional
 
 Run:
 
 ```text
-/setup clan-logs clan:#CLAN_TAG channel:#cp-donations
+/setup clan-logs clan:#CLAN_TAG channel:#donations
 ```
 
 Enable:
@@ -194,7 +194,7 @@ References:
 
 ## 10. Reporter bot permissions
 
-In each `#cp-*` channel:
+In each ClashPerk data channel (`#members`, `#wars`, `#cwl`, `#capital`, `#clan-games`, and `#donations`):
 
 - View Channel
 - Read Message History
@@ -224,10 +224,10 @@ Useful manual exports can be compared to calculated results, but exports should 
 
 | Channel | Required for V1 | Primary data |
 |---|---:|---|
-| `#cp-members` | Yes | joins, leaves, names, roles |
-| `#cp-wars` | Yes | regular war attacks and misses |
-| `#cp-cwl` | Yes | CWL attacks, misses, lineups |
-| `#cp-capital` | Yes | capital contribution / raids |
-| `#cp-games` | Yes | Clan Games leaderboard |
-| `#cp-donations` | No | donation summaries |
+| `#members` | Yes | joins, leaves, names, roles |
+| `#wars` | Yes | regular war attacks and misses |
+| `#cwl` | Yes | CWL attacks, misses, lineups |
+| `#capital` | Yes | capital contribution / raids |
+| `#clan-games` | Yes | Clan Games leaderboard |
+| `#donations` | No | donation summaries |
 | `#clan-reports` | Yes | generated monthly report |

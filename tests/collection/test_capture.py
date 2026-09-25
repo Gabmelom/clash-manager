@@ -69,8 +69,8 @@ def capture(
             {channel: [messages] for channel, messages in clashperk_history.items()}
         )
         channels = kwargs.pop("channels", None) or {
-            "cp-members": MEMBERS_CHANNEL,
-            "cp-wars": WARS_CHANNEL,
+            "members": MEMBERS_CHANNEL,
+            "wars": WARS_CHANNEL,
         }
         kwargs.setdefault("captured_at", CAPTURED_AT)
         with client_for(transport) as client:
@@ -95,11 +95,11 @@ def test_writes_one_file_per_channel_plus_a_manifest(
     run = capture(tmp_path)
 
     assert sorted(path.name for path in tmp_path.iterdir()) == [
-        "cp-members.json",
-        "cp-wars.json",
         "manifest.json",
+        "members.json",
+        "wars.json",
     ]
-    assert [channel.name for channel in run.channels] == ["cp-members", "cp-wars"]
+    assert [channel.name for channel in run.channels] == ["members", "wars"]
     assert run.message_count == 4
     assert run.manifest_path == tmp_path / MANIFEST_FILENAME
 
@@ -108,7 +108,7 @@ def test_messages_are_written_in_chronological_order(
     capture: Callable[..., Any], tmp_path: Path
 ) -> None:
     capture(tmp_path)
-    written = read(tmp_path / "cp-members.json")
+    written = read(tmp_path / "members.json")
     assert [message["timestamp"] for message in written] == [
         "2026-08-03T18:12:44.281000+00:00",
         "2026-08-19T02:41:09.553000+00:00",
@@ -122,17 +122,17 @@ def test_output_round_trips_to_the_same_message_objects(
     tmp_path: Path,
 ) -> None:
     capture(tmp_path)
-    written = read(tmp_path / "cp-members.json")
+    written = read(tmp_path / "members.json")
     assert written == list(reversed(clashperk_history[MEMBERS_CHANNEL]))
-    assert read(tmp_path / "cp-wars.json") == clashperk_history[WARS_CHANNEL]
+    assert read(tmp_path / "wars.json") == clashperk_history[WARS_CHANNEL]
 
 
 def test_clashperk_payload_details_survive_the_capture(
     capture: Callable[..., Any], tmp_path: Path
 ) -> None:
     capture(tmp_path)
-    join = read(tmp_path / "cp-members.json")[0]
-    attack = read(tmp_path / "cp-wars.json")[0]
+    join = read(tmp_path / "members.json")[0]
+    attack = read(tmp_path / "wars.json")[0]
 
     assert join["embeds"][0]["title"] == "\u200eAurora (#2Y0LRPV8Q)"
     assert join["embeds"][0]["footer"]["text"] == "Joined Maple Legends [43/50]"
@@ -149,7 +149,7 @@ def test_output_is_byte_identical_for_the_same_input(
     second = tmp_path / "second"
     capture(first)
     capture(second)
-    assert (first / "cp-members.json").read_bytes() == (second / "cp-members.json").read_bytes()
+    assert (first / "members.json").read_bytes() == (second / "members.json").read_bytes()
     assert (first / "manifest.json").read_bytes() == (second / "manifest.json").read_bytes()
 
 
@@ -169,15 +169,15 @@ def test_manifest_records_window_counts_and_api_version(
     assert manifest["channels"] == [
         {
             "channel_id": MEMBERS_CHANNEL,
-            "file": "cp-members.json",
+            "file": "members.json",
             "message_count": 3,
-            "name": "cp-members",
+            "name": "members",
         },
         {
             "channel_id": WARS_CHANNEL,
-            "file": "cp-wars.json",
+            "file": "wars.json",
             "message_count": 1,
-            "name": "cp-wars",
+            "name": "wars",
         },
     ]
 
@@ -194,7 +194,7 @@ def test_partial_current_month_capture_is_recorded_as_incomplete(
     run = capture(
         tmp_path,
         window=window,
-        channels={"cp-members": MEMBERS_CHANNEL},
+        channels={"members": MEMBERS_CHANNEL},
         transport=transport_for({MEMBERS_CHANNEL: [partial]}),
         captured_at=now,
     )
@@ -217,18 +217,18 @@ def test_a_forbidden_channel_fails_the_run_and_leaves_no_file(
         with pytest.raises(ChannelCaptureError) as excinfo:
             capture_channels(
                 client,
-                channels={"cp-members": MEMBERS_CHANNEL, "cp-wars": WARS_CHANNEL},
+                channels={"members": MEMBERS_CHANNEL, "wars": WARS_CHANNEL},
                 window=resolve_month("2026-08", timezone=TORONTO),
                 output_dir=tmp_path,
                 captured_at=CAPTURED_AT,
             )
 
     error = excinfo.value
-    assert error.channel_name == "cp-wars"
-    assert "cp-wars" in str(error)
+    assert error.channel_name == "wars"
+    assert "wars" in str(error)
     assert WARS_CHANNEL in str(error)
     assert TOKEN not in str(error)
-    assert not (tmp_path / "cp-wars.json").exists()
+    assert not (tmp_path / "wars.json").exists()
     assert not (tmp_path / MANIFEST_FILENAME).exists()
     assert not list(tmp_path.glob(".*.tmp"))
 
@@ -244,19 +244,19 @@ def test_allow_partial_records_an_inaccessible_channel_and_continues(
     with client_for(httpx.MockTransport(handler)) as client:
         run = capture_channels(
             client,
-            channels={"cp-members": MEMBERS_CHANNEL, "cp-wars": WARS_CHANNEL},
+            channels={"members": MEMBERS_CHANNEL, "wars": WARS_CHANNEL},
             window=resolve_month("2026-08", timezone=TORONTO),
             output_dir=tmp_path,
             captured_at=CAPTURED_AT,
             allow_partial=True,
         )
 
-    assert [channel.name for channel in run.channels] == ["cp-members"]
-    assert [failure.name for failure in run.failures] == ["cp-wars"]
-    assert not (tmp_path / "cp-wars.json").exists()
-    assert (tmp_path / "cp-members.json").is_file()
+    assert [channel.name for channel in run.channels] == ["members"]
+    assert [failure.name for failure in run.failures] == ["wars"]
+    assert not (tmp_path / "wars.json").exists()
+    assert (tmp_path / "members.json").is_file()
     manifest = read(run.manifest_path)
-    assert manifest["failures"][0]["name"] == "cp-wars"
+    assert manifest["failures"][0]["name"] == "wars"
     assert TOKEN not in json.dumps(manifest)
 
 
@@ -281,7 +281,7 @@ def test_sanitize_pseudonymizes_ids_consistently_and_keeps_payload_structure(
 ) -> None:
     run = capture(tmp_path, sanitize=True)
 
-    members = read(tmp_path / "cp-members.json")
+    members = read(tmp_path / "members.json")
     join, leave = members[0], members[1]
     original_join = clashperk_history[MEMBERS_CHANNEL][-1]
 
@@ -307,7 +307,7 @@ def test_sanitize_is_deterministic_across_runs(capture: Callable[..., Any], tmp_
     second = tmp_path / "second"
     capture(first, sanitize=True)
     capture(second, sanitize=True)
-    assert (first / "cp-members.json").read_bytes() == (second / "cp-members.json").read_bytes()
+    assert (first / "members.json").read_bytes() == (second / "members.json").read_bytes()
 
 
 def test_unsanitized_capture_preserves_original_ids(
@@ -316,6 +316,6 @@ def test_unsanitized_capture_preserves_original_ids(
     tmp_path: Path,
 ) -> None:
     capture(tmp_path)
-    join = read(tmp_path / "cp-members.json")[0]
+    join = read(tmp_path / "members.json")[0]
     assert join["webhook_id"] == clashperk_history[MEMBERS_CHANNEL][-1]["webhook_id"]
     assert join["author"]["id"] == clashperk_history[MEMBERS_CHANNEL][-1]["author"]["id"]

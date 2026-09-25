@@ -97,7 +97,7 @@ python -m clash_reporter report --input tests/fixtures/normalized/monthly_player
 ```
 
 `clash-reporter normalize` is a **members-only** slice of issue #11. It reads a
-`fetch` directory, runs the `#cp-members` parser, reconstructs membership, and
+`fetch` directory, runs the `#members` parser, reconstructs membership, and
 writes a `MonthlyDataset` that `report --dry-run` accepts. War, CWL, Clan Games,
 capital, and donation fields stay `None` (missing) until those parsers land —
 never treat them as observed zeros. See `docs/DEVELOPMENT.md`.

@@ -12,8 +12,8 @@ issue be done offline by an agent with no Discord access.
 
 ## Scope
 
-- `clash-reporter fetch --month 2026-08 --output ./artifacts/raw [--channel cp-wars]`,
-  writing one JSON file per channel (`cp-members.json`, `cp-wars.json`, …) containing the raw
+- `clash-reporter fetch --month 2026-08 --output ./artifacts/raw [--channel wars]`,
+  writing one JSON file per channel (`members.json`, `wars.json`, …) containing the raw
   Discord message objects in chronological order.
 - Include a small run manifest per capture: channel ID, window, message count, captured-at
   timestamp, and the API version used.

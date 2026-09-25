@@ -55,10 +55,10 @@ python -m clash_reporter run --month previous --post
 and does not post. It also writes `artifacts/report/report.md` and
 `artifacts/report/report.csv`.
 
-By default every required data channel (`#cp-members`, `#cp-wars`, `#cp-cwl`,
-`#cp-capital`, `#cp-games`) must be configured and readable. An inaccessible
-required channel fails the run before anything is posted. `#cp-donations` is
-optional. A readable `#cp-games` channel with no Clan Games event is a valid
+By default every required data channel (`#members`, `#wars`, `#cwl`,
+`#capital`, `#clan-games`) must be configured and readable. An inaccessible
+required channel fails the run before anything is posted. `#donations` is
+optional. A readable `#clan-games` channel with no Clan Games event is a valid
 month, not a failure. `--allow-partial` posts anyway when a required channel
 is missing or inaccessible; the scheduled workflow does not pass it.
 
@@ -70,7 +70,7 @@ only step that needs live Discord access, and it is deliberately parse-free.
 ```bash
 clash-reporter fetch --month 2026-08 --output ./artifacts/raw
 clash-reporter fetch --month current --output ./artifacts/raw     # the month so far
-clash-reporter fetch --month previous --channel cp-wars --sanitize
+clash-reporter fetch --month previous --channel wars --sanitize
 ```
 
 Notes:
@@ -95,7 +95,7 @@ Notes:
 ## Members-only `normalize` (partial #11)
 
 `clash-reporter normalize` is the local path from a Discord `fetch` directory to
-`report --dry-run`. It is **not** the full aggregation issue: only `#cp-members` is parsed.
+`report --dry-run`. It is **not** the full aggregation issue: only `#members` is parsed.
 
 ```bash
 clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
@@ -104,7 +104,7 @@ clash-reporter report --input ./artifacts/normalized/monthly_players.json --dry-
 
 What it does:
 
-- Reads `cp-members.json` (same layout `fetch` writes) and optional `manifest.json` for the month.
+- Reads `members.json` (same layout `fetch` writes) and optional `manifest.json` for the month.
 - Parses join / leave / role / name events, de-duplicates by Discord message ID.
 - Reconstructs membership intervals and `eligible_days` in `REPORT_TIMEZONE`
   (the process timezone, not a timezone stored on the fetch manifest). A
@@ -124,7 +124,7 @@ What it deliberately does not do:
 - Name→tag attribution and the Clash of Clans API stay deferred (`AGENTS.md`).
 
 `--month` is optional when the fetch manifest is present. Pass `--month YYYY-MM` to
-override it, or when normalizing a directory that has `cp-members.json` but no manifest.
+override it, or when normalizing a directory that has `members.json` but no manifest.
 
 Full aggregation (issue #11) starts from this slice once the other log-family parsers land.
 
@@ -200,7 +200,7 @@ pins down one ClashPerk message format.
    ```bash
    python - <<'PY'
    import json, pathlib
-   messages = json.loads(pathlib.Path("artifacts/raw/cp-members.json").read_text())
+   messages = json.loads(pathlib.Path("artifacts/raw/members.json").read_text())
    for message in messages:
        print(message["id"], message["content"][:80] or message.get("embeds"))
    PY
@@ -405,19 +405,24 @@ Repository variables, or secrets of the same name:
 
 ```text
 DISCORD_GUILD_ID
-DISCORD_CP_MEMBERS_CHANNEL_ID
-DISCORD_CP_WARS_CHANNEL_ID
-DISCORD_CP_CWL_CHANNEL_ID
-DISCORD_CP_CAPITAL_CHANNEL_ID
-DISCORD_CP_GAMES_CHANNEL_ID
-DISCORD_CP_DONATIONS_CHANNEL_ID
+DISCORD_MEMBERS_CHANNEL_ID
+DISCORD_WARS_CHANNEL_ID
+DISCORD_CWL_CHANNEL_ID
+DISCORD_CAPITAL_CHANNEL_ID
+DISCORD_CLAN_GAMES_CHANNEL_ID
+DISCORD_DONATIONS_CHANNEL_ID
 DISCORD_REPORT_CHANNEL_ID
 REPORT_TIMEZONE
 ```
 
-`REPORT_TIMEZONE` defaults to `America/Toronto` when unset. `DISCORD_CP_DONATIONS_CHANNEL_ID`
-is optional. The other channel IDs are required; a missing required channel fails
+`REPORT_TIMEZONE` defaults to `America/Toronto` when unset. `DISCORD_DONATIONS_CHANNEL_ID`
+is optional and is the ID of `#donations`. The other channel IDs are required
+and name the live channels: `#members`, `#wars`, `#cwl`, `#capital`, and
+`#clan-games` (`DISCORD_CLAN_GAMES_CHANNEL_ID`). A missing required channel fails
 the run before posting.
+
+Earlier drafts used `DISCORD_CP_*_CHANNEL_ID`. Those names are not read. If a
+repository variable was created under an old name, rename it before the next run.
 
 Channel IDs are not credentials, but keeping environment-specific configuration outside code is still preferable.
 

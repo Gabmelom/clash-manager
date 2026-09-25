@@ -16,8 +16,8 @@ season, a Clan Games event, and a Raid Weekend.
 
 ## Scope
 
-- Create the `CLASHPERK DATA` category with `#cp-members`, `#cp-wars`, `#cp-cwl`,
-  `#cp-capital`, `#cp-games`, and optionally `#cp-donations`.
+- Create the `CLASHPERK DATA` category with `#members`, `#wars`, `#cwl`,
+  `#capital`, `#clan-games`, and optionally `#donations`.
 - Create `#clan-reports` under clan management.
 - Enable the ClashPerk logs listed in `docs/CLASHPERK_SETUP.md`, each pointed at its channel.
 - Create a Discord application and bot user for the reporter, and invite it with:

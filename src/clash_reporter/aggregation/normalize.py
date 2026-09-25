@@ -4,8 +4,8 @@ Input layout matches ``clash-reporter fetch``:
 
 ```text
 <input>/
-  cp-members.json    # list of Discord message objects
-  cp-wars.json       # optional, ignored until that parser lands
+  members.json    # list of Discord message objects
+  wars.json       # optional, ignored until that parser lands
   manifest.json      # optional; supplies month_key when --month is omitted
 ```
 
@@ -47,7 +47,7 @@ __all__ = [
 ]
 
 DEFAULT_NORMALIZED_OUTPUT = Path("./artifacts/normalized")
-MEMBERS_CHANNEL_NAME = "cp-members"
+MEMBERS_CHANNEL_NAME = "members"
 
 
 class NormalizeError(RuntimeError):
@@ -108,7 +108,7 @@ def normalize_capture(
     *,
     window: ReportingWindow,
 ) -> NormalizeResult:
-    """Parse ``#cp-members`` from a fetch directory and write normalize artifacts."""
+    """Parse ``#members`` from a fetch directory and write normalize artifacts."""
     members_path = input_dir / f"{MEMBERS_CHANNEL_NAME}.json"
     if not members_path.is_file():
         raise NormalizeError(

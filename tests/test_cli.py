@@ -19,11 +19,11 @@ TOKEN = "not-a-real-token-abc123"  # noqa: S105 - dummy value for mocked transpo
 MEMBERS_CHANNEL = "400000000000000001"
 WARS_CHANNEL = "400000000000000002"
 REQUIRED_CHANNEL_IDS = {
-    "cp-members": MEMBERS_CHANNEL,
-    "cp-wars": WARS_CHANNEL,
-    "cp-cwl": "400000000000000003",
-    "cp-capital": "400000000000000004",
-    "cp-games": "400000000000000005",
+    "members": MEMBERS_CHANNEL,
+    "wars": WARS_CHANNEL,
+    "cwl": "400000000000000003",
+    "capital": "400000000000000004",
+    "clan-games": "400000000000000005",
 }
 
 
@@ -61,7 +61,7 @@ def discord_stub(
 ) -> Iterator[DiscordStub]:
     """Install a mocked transport serving real ClashPerk history to the CLI's client."""
     stub = DiscordStub(requests=[], client_kwargs=[])
-    # cp-members answers with one page of history, then runs out.
+    # members answers with one page of history, then runs out.
     responses: dict[str, httpx.Response] = {
         MEMBERS_CHANNEL: httpx.Response(
             200,
@@ -122,14 +122,14 @@ def test_fetch_writes_channel_files_and_a_manifest(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     exit_code = cli.main(
-        ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "cp-members"]
+        ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "members"]
     )
 
     assert exit_code == 0
-    written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
+    written = json.loads((tmp_path / "members.json").read_text(encoding="utf-8"))
     assert [message["timestamp"] for message in written] == [
         "2026-08-03T18:12:44.281000+00:00",
         "2026-08-19T02:41:09.553000+00:00",
@@ -139,7 +139,7 @@ def test_fetch_writes_channel_files_and_a_manifest(
     assert manifest["window"]["month_key"] == "2026-08"
     assert manifest["channels"][0]["message_count"] == 2
     out = capsys.readouterr().out
-    assert "cp-members: 2 messages" in out
+    assert "members: 2 messages" in out
     assert "Manifest:" in out
 
 
@@ -149,7 +149,7 @@ def test_fetch_uses_the_configured_api_base_url(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     monkeypatch.setenv("DISCORD_API_BASE_URL", "http://127.0.0.1:8787/api")
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
@@ -163,7 +163,7 @@ def test_fetch_defaults_to_the_public_discord_api(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
     assert discord_stub.client_kwargs == [{"base_url": "https://discord.com/api"}]
@@ -176,7 +176,7 @@ def test_fetch_current_month_reports_a_partial_capture(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     exit_code = cli.main(["fetch", "--month", "current", "--output", str(tmp_path)])
 
@@ -192,19 +192,19 @@ def test_fetch_captures_every_configured_channel_by_default(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
-    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", WARS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_WARS_CHANNEL_ID", WARS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)]) == 0
-    assert (tmp_path / "cp-members.json").exists()
-    assert (tmp_path / "cp-wars.json").exists()
-    assert not (tmp_path / "cp-cwl.json").exists()
+    assert (tmp_path / "members.json").exists()
+    assert (tmp_path / "wars.json").exists()
+    assert not (tmp_path / "cwl.json").exists()
 
 
 def test_fetch_without_a_token_fails_closed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path)])
     assert exit_code == 2
     assert "DISCORD_BOT_TOKEN" in capsys.readouterr().err
@@ -224,19 +224,19 @@ def test_fetch_names_a_requested_channel_that_is_not_configured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(
-        ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "cp-wars"]
+        ["fetch", "--month", "2026-08", "--output", str(tmp_path), "--channel", "wars"]
     )
     assert exit_code == 2
-    assert "DISCORD_CP_WARS_CHANNEL_ID" in capsys.readouterr().err
+    assert "DISCORD_WARS_CHANNEL_ID" in capsys.readouterr().err
 
 
 def test_fetch_reports_an_unreadable_channel_by_name(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_WARS_CHANNEL_ID", WARS_CHANNEL)
+    monkeypatch.setenv("DISCORD_WARS_CHANNEL_ID", WARS_CHANNEL)
 
     def build(token: str, **kwargs: Any) -> DiscordClient:
         return DiscordClient(
@@ -253,9 +253,9 @@ def test_fetch_reports_an_unreadable_channel_by_name(
 
     captured = capsys.readouterr()
     assert exit_code == 2
-    assert "cp-wars" in captured.err
+    assert "wars" in captured.err
     assert TOKEN not in captured.err
-    assert not (tmp_path / "cp-wars.json").exists()
+    assert not (tmp_path / "wars.json").exists()
 
 
 def test_fetch_sanitize_flag_pseudonymizes_ids(
@@ -264,10 +264,10 @@ def test_fetch_sanitize_flag_pseudonymizes_ids(
     discord_stub: DiscordStub,
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
 
     assert cli.main(["fetch", "--month", "2026-08", "--output", str(tmp_path), "--sanitize"]) == 0
-    written = json.loads((tmp_path / "cp-members.json").read_text(encoding="utf-8"))
+    written = json.loads((tmp_path / "members.json").read_text(encoding="utf-8"))
     assert written[0]["webhook_id"] != "300000000000000001"
     assert written[0]["author"]["id"] == written[0]["webhook_id"]
     assert "#2Y0LRPV8Q" in json.dumps(written)
@@ -517,7 +517,7 @@ def test_run_post_without_report_channel_posts_nothing(
         raise AssertionError("run --post must fail closed before opening a client")
 
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     monkeypatch.setattr(cli, "DiscordClient", explode)
 
     exit_code = cli.main(["run", "--month", "2026-08", "--post", "--raw-output", str(tmp_path)])
@@ -531,13 +531,13 @@ def test_run_inaccessible_wars_posts_nothing(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """#cp-wars 403 aborts before any message is posted."""
+    """#wars 403 aborts before any message is posted."""
     seen: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.method)
         if request.method == "POST":
-            raise AssertionError("an inaccessible #cp-wars must not post")
+            raise AssertionError("an inaccessible #wars must not post")
         channel_id = request.url.path.split("/")[-2]
         if channel_id == WARS_CHANNEL:
             return httpx.Response(403, json={"message": f"Missing Access {TOKEN}"})
@@ -583,7 +583,7 @@ def test_run_inaccessible_wars_posts_nothing(
     )
     captured = capsys.readouterr()
     assert exit_code == 2
-    assert "cp-wars" in captured.err
+    assert "wars" in captured.err
     assert "POST" not in seen
     assert TOKEN not in captured.err
     assert TOKEN not in captured.out
@@ -595,9 +595,9 @@ def test_run_without_clan_games_event_still_posts(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A readable #cp-games channel with no event is a valid month."""
+    """A readable #clan-games channel with no event is a valid month."""
     seen: list[httpx.Request] = []
-    games_id = REQUIRED_CHANNEL_IDS["cp-games"]
+    games_id = REQUIRED_CHANNEL_IDS["clan-games"]
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
@@ -652,7 +652,7 @@ def test_run_without_clan_games_event_still_posts(
     assert "Posted 1 message" in captured.out
     assert TOKEN not in captured.out
     assert TOKEN not in captured.err
-    games = json.loads((tmp_path / "raw" / "cp-games.json").read_text(encoding="utf-8"))
+    games = json.loads((tmp_path / "raw" / "clan-games.json").read_text(encoding="utf-8"))
     assert games == []
 
 
@@ -715,7 +715,7 @@ def test_run_allow_partial_posts_when_wars_are_inaccessible(
     assert exit_code == 0
     assert "POST" in seen
     assert "partial report" in captured.err
-    assert "cp-wars" in captured.err
+    assert "wars" in captured.err
     assert TOKEN not in captured.err
 
 
@@ -723,7 +723,7 @@ def test_fetch_rejects_an_invalid_month(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
     exit_code = cli.main(["fetch", "--month", "august", "--output", str(tmp_path)])
     assert exit_code == 2
     assert "Invalid month" in capsys.readouterr().err

@@ -53,7 +53,7 @@ not invent a tag.
 
 ## Future scope (when a real duplicate appears)
 
-- Build a name→tag index from `#cp-members` events and any other tag-bearing log in the
+- Build a name→tag index from `#members` events and any other tag-bearing log in the
   window.
 - Handle collisions the index will have: two members with the same display name, a name
   reused after someone leaves, and a rename mid-month (the name-change log gives both the

@@ -49,12 +49,12 @@ A Discord library such as `discord.py` is intentionally not required for V1. The
 
 ```text
 CLASHPERK DATA
-├── #cp-members
-├── #cp-wars
-├── #cp-cwl
-├── #cp-capital
-├── #cp-games
-└── #cp-donations      # optional for V1
+├── #members
+├── #wars
+├── #cwl
+├── #capital
+├── #clan-games
+└── #donations      # optional for V1
 
 CLAN MANAGEMENT
 └── #clan-reports      # monthly output from this project
@@ -160,15 +160,17 @@ Expected environment variables:
 ```text
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
-DISCORD_CP_MEMBERS_CHANNEL_ID=
-DISCORD_CP_WARS_CHANNEL_ID=
-DISCORD_CP_CWL_CHANNEL_ID=
-DISCORD_CP_CAPITAL_CHANNEL_ID=
-DISCORD_CP_GAMES_CHANNEL_ID=
-DISCORD_CP_DONATIONS_CHANNEL_ID=
+DISCORD_MEMBERS_CHANNEL_ID=
+DISCORD_WARS_CHANNEL_ID=
+DISCORD_CWL_CHANNEL_ID=
+DISCORD_CAPITAL_CHANNEL_ID=
+DISCORD_CLAN_GAMES_CHANNEL_ID=
+DISCORD_DONATIONS_CHANNEL_ID=
 DISCORD_REPORT_CHANNEL_ID=
 REPORT_TIMEZONE=America/Toronto
 ```
+
+Channel ID variables match the live Discord channels: `#members`, `#wars`, `#cwl`, `#capital`, `#clan-games` (`DISCORD_CLAN_GAMES_CHANNEL_ID`), and optional `#donations`. The first five are required for a monthly run.
 
 Optional:
 
@@ -225,7 +227,7 @@ clash-reporter run --month previous --post
 
 `run` fetches raw logs, normalizes them, and renders the report. `--post` delivers that report. Without `--post`, the report is printed and nothing is posted. Fetch still needs `DISCORD_BOT_TOKEN` and the data-channel IDs.
 
-`#cp-members`, `#cp-wars`, `#cp-cwl`, `#cp-capital`, and `#cp-games` must be configured and readable. An inaccessible required channel fails the run before anything is posted. A readable `#cp-games` channel with no Clan Games event is still a valid month. `--allow-partial` posts anyway; it is off by default, and the monthly workflow does not pass it.
+`#members`, `#wars`, `#cwl`, `#capital`, and `#clan-games` must be configured and readable. An inaccessible required channel fails the run before anything is posted. A readable `#clan-games` channel with no Clan Games event is still a valid month. `--allow-partial` posts anyway; it is off by default, and the monthly workflow does not pass it.
 
 The scheduled job is [`.github/workflows/monthly-report.yml`](.github/workflows/monthly-report.yml): manual `workflow_dispatch` (optional `month`) and 05:00 UTC on the 1st. Month selection stays in the app (`REPORT_TIMEZONE`), not in the cron clock. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
@@ -236,21 +238,21 @@ The scheduled job is [`.github/workflows/monthly-report.yml`](.github/workflows/
 ```bash
 clash-reporter fetch --month 2026-08 --output ./artifacts/raw
 clash-reporter fetch --month current --output ./artifacts/raw            # the month so far
-clash-reporter fetch --month previous --channel cp-wars --sanitize
+clash-reporter fetch --month previous --channel wars --sanitize
 ```
 
 - `--month` - `YYYY-MM`, `previous`, or `current`. Months are resolved in `REPORT_TIMEZONE`, and `current` captures a partial, still-open month, which is the fastest way to get usable fixtures from a freshly configured server.
 - `--output` - directory for the capture. Defaults to `./artifacts/raw`.
-- `--channel` - capture one channel (`cp-members`, `cp-wars`, `cp-cwl`, `cp-capital`, `cp-games`, `cp-donations`). Repeatable. Defaults to every channel with a configured ID.
+- `--channel` - capture one channel (`members`, `wars`, `cwl`, `capital`, `clan-games`, `donations`). Repeatable. Defaults to every channel with a configured ID.
 - `--sanitize` - pseudonymize guild and Discord user IDs consistently across the capture. Message IDs, timestamps, embed structure, and player tags are preserved.
 
 Each run writes one file per channel plus a `manifest.json` recording the channel IDs, window, message counts, capture time, and Discord API version. Output is deterministic (sorted keys, chronological order), so re-capturing the same messages produces byte-identical files. A channel the bot cannot read fails the run with the channel name and leaves no file behind for it.
 
-Requires `DISCORD_BOT_TOKEN` and at least one `DISCORD_CP_*_CHANNEL_ID`. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
+Requires `DISCORD_BOT_TOKEN` and at least one data-channel ID (`DISCORD_MEMBERS_CHANNEL_ID`, `DISCORD_WARS_CHANNEL_ID`, `DISCORD_CWL_CHANNEL_ID`, `DISCORD_CAPITAL_CHANNEL_ID`, `DISCORD_CLAN_GAMES_CHANNEL_ID`, or optional `DISCORD_DONATIONS_CHANNEL_ID`). See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
 
 ### Normalize a fetch directory (members-only)
 
-`normalize` turns a `fetch` directory into the `MonthlyDataset` JSON that `report --dry-run` already consumes. Today it only parses `#cp-members` (partial issue #11). War, CWL, Clan Games, capital, and donation metrics stay missing (`null`), not zero.
+`normalize` turns a `fetch` directory into the `MonthlyDataset` JSON that `report --dry-run` already consumes. Today it only parses `#members` (partial issue #11). War, CWL, Clan Games, capital, and donation metrics stay missing (`null`), not zero.
 
 ```bash
 clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized
@@ -287,7 +289,7 @@ ClashPerk is open source, so the exact shape of every log message can be read fr
 ## Status
 
 **Early implementation.** Scoring, ranking, and report rendering work offline against a
-normalized dataset. `#cp-members` can also be parsed from a `fetch` directory into that
+normalized dataset. `#members` can also be parsed from a `fetch` directory into that
 dataset (members-only; other activity fields stay missing):
 
 ```bash

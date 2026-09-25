@@ -31,12 +31,12 @@ Build a lightweight monthly Clash of Clans clan-management reporter using **Clas
 ## Input channels
 
 ```text
-#cp-members
-#cp-wars
-#cp-cwl
-#cp-capital
-#cp-games
-#cp-donations   # optional
+#members
+#wars
+#cwl
+#capital
+#clan-games
+#donations   # optional
 ```
 
 Output:

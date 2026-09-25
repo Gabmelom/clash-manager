@@ -16,27 +16,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from clash_reporter.discord_client import DEFAULT_BASE_URL
 
-#: ClashPerk data channels, in capture order. Names are configuration, not
-#: business logic: everything downstream addresses a channel by this name and
-#: resolves the ID through :class:`Settings`.
+#: ClashPerk data channels, in capture order. Names match the live Discord
+#: channels (``#members``, ``#wars``, ``#cwl``, ``#capital``, ``#clan-games``,
+#: ``#donations``). They are configuration, not business logic: everything
+#: downstream addresses a channel by this name and resolves the ID through
+#: :class:`Settings`. The env var is ``DISCORD_<NAME>_CHANNEL_ID``.
 DATA_CHANNELS: Final[tuple[str, ...]] = (
-    "cp-members",
-    "cp-wars",
-    "cp-cwl",
-    "cp-capital",
-    "cp-games",
-    "cp-donations",
+    "members",
+    "wars",
+    "cwl",
+    "capital",
+    "clan-games",
+    "donations",
 )
 
-#: Channels the monthly report cannot omit. ``#cp-donations`` stays optional.
-#: An empty ``#cp-games`` capture is still a successful read: no Clan Games
+#: Channels the monthly report cannot omit. ``#donations`` stays optional.
+#: An empty ``#clan-games`` capture is still a successful read: no Clan Games
 #: event that month is valid. Inaccessible is not the same thing.
 REQUIRED_DATA_CHANNELS: Final[tuple[str, ...]] = (
-    "cp-members",
-    "cp-wars",
-    "cp-cwl",
-    "cp-capital",
-    "cp-games",
+    "members",
+    "wars",
+    "cwl",
+    "capital",
+    "clan-games",
 )
 
 
@@ -81,12 +83,12 @@ class Settings(BaseSettings):
 
     discord_bot_token: str | None = Field(default=None)
     discord_guild_id: str | None = Field(default=None)
-    discord_cp_members_channel_id: str | None = Field(default=None)
-    discord_cp_wars_channel_id: str | None = Field(default=None)
-    discord_cp_cwl_channel_id: str | None = Field(default=None)
-    discord_cp_capital_channel_id: str | None = Field(default=None)
-    discord_cp_games_channel_id: str | None = Field(default=None)
-    discord_cp_donations_channel_id: str | None = Field(default=None)
+    discord_members_channel_id: str | None = Field(default=None)
+    discord_wars_channel_id: str | None = Field(default=None)
+    discord_cwl_channel_id: str | None = Field(default=None)
+    discord_capital_channel_id: str | None = Field(default=None)
+    discord_clan_games_channel_id: str | None = Field(default=None)
+    discord_donations_channel_id: str | None = Field(default=None)
     discord_report_channel_id: str | None = Field(default=None)
     report_timezone: str = "America/Toronto"
 
@@ -115,7 +117,7 @@ class Settings(BaseSettings):
         return self.discord_bot_token
 
     def channel_id(self, name: str) -> str | None:
-        """ID configured for a data channel name such as ``cp-wars``."""
+        """ID configured for a data channel name such as ``wars``."""
         if name not in DATA_CHANNELS:
             raise KeyError(f"Unknown data channel {name!r}. Known channels: {known_channels()}")
         value = getattr(self, f"discord_{name.replace('-', '_')}_channel_id")
@@ -156,15 +158,15 @@ class Settings(BaseSettings):
         """Channels for ``run``.
 
         By default every required data channel must be configured, and
-        ``#cp-donations`` is included only when its ID is set. ``allow_partial``
+        ``#donations`` is included only when its ID is set. ``allow_partial``
         keeps whatever is configured so a known-incomplete month can still post.
         """
         if allow_partial:
             return self.require_data_channels()
         resolved = self.require_data_channels(REQUIRED_DATA_CHANNELS)
-        donations = self.channel_id("cp-donations")
+        donations = self.channel_id("donations")
         if donations:
-            resolved["cp-donations"] = donations
+            resolved["donations"] = donations
         return resolved
 
 

@@ -72,12 +72,12 @@ def write_raw_capture(
     extra_channels: dict[str, list[dict[str, Any]]] | None = None,
 ) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "cp-members.json").write_text(dump_json(messages), encoding="utf-8")
+    (directory / "members.json").write_text(dump_json(messages), encoding="utf-8")
     channels = [
         {
-            "name": "cp-members",
+            "name": "members",
             "channel_id": "400000000000000001",
-            "file": "cp-members.json",
+            "file": "members.json",
             "message_count": len(messages),
         }
     ]
@@ -128,7 +128,7 @@ def test_normalize_writes_dataset_events_and_diagnostics(
     raw = write_raw_capture(
         tmp_path / "raw",
         _sample_messages(clashperk_message),
-        extra_channels={"cp-wars": [clashperk_message("wars/attack.json")]},
+        extra_channels={"wars": [clashperk_message("wars/attack.json")]},
     )
     out = tmp_path / "normalized"
     result = normalize_capture(raw, out, window=AUGUST)
@@ -161,7 +161,7 @@ def test_normalize_writes_dataset_events_and_diagnostics(
 
     diagnostics = json.loads(result.diagnostics_path.read_text(encoding="utf-8"))
     assert diagnostics["members_only"] is True
-    assert "cp-wars" in diagnostics["unused_channels"]
+    assert "wars" in diagnostics["unused_channels"]
     assert any("not wired" in note for note in dataset.data_notes)
 
 
@@ -204,7 +204,7 @@ def test_normalize_requires_month_without_manifest(
 ) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
-    (raw / "cp-members.json").write_text("[]", encoding="utf-8")
+    (raw / "members.json").write_text("[]", encoding="utf-8")
     exit_code = cli.main(["normalize", "--input", str(raw), "--output", str(tmp_path / "out")])
     assert exit_code == 2
     assert "Month is required" in capsys.readouterr().err
@@ -227,7 +227,7 @@ def test_normalize_missing_members_file_fails_closed(
         ]
     )
     assert exit_code == 2
-    assert "cp-members.json" in capsys.readouterr().err
+    assert "members.json" in capsys.readouterr().err
 
 
 def test_manifest_timezone_mismatch_is_a_data_note(

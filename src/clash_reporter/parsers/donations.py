@@ -1,4 +1,4 @@
-"""#cp-donations parser: daily (also weekly/monthly) donation leaderboard.
+"""#donations parser: daily (also weekly/monthly) donation leaderboard.
 
 ClashPerk's ``rangeDonation`` (``src/core/donation-log.ts``) posts a name-only
 embed. V1 treats donations as display-only: this parser must not feed scoring.
