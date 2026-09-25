@@ -12,9 +12,14 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from clash_reporter.events import (
+    CapitalContribution,
+    CapitalRaidAttack,
+    CapitalWeeklySummaryRow,
+    ClanGamesResult,
     CwlAttack,
     CwlLineupChange,
     CwlMissedAttack,
+    DonationSummary,
     MemberEvent,
     WarAttack,
     WarMissedAttacks,
@@ -24,6 +29,7 @@ __all__ = [
     "DomainEvent",
     "IGNORED_MALFORMED",
     "IGNORED_MISSING_PLAYER_TAG",
+    "IGNORED_MISSING_ROWS",
     "IGNORED_UNKNOWN_LAYOUT",
     "IGNORED_UNSUPPORTED_LOG",
     "IgnoredMessage",
@@ -48,6 +54,7 @@ IGNORED_MALFORMED = "malformed"
 IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
+IGNORED_MISSING_ROWS = "missing_rows"
 # Data-quality warning on an *emitted* war/CWL attack that could not be joined
 # to a war embed or missed-attacks message. Not a dropped message.
 WARNING_MISSING_WAR_CONTEXT = "missing_war_context"
@@ -55,7 +62,17 @@ WARNING_MISSING_WAR_CONTEXT = "missing_war_context"
 # ``MemberEvent`` is the membership-only arm. ``DomainEvent`` is the full parser
 # union; aggregation must not treat it as tag-bearing membership rows.
 type DomainEvent = (
-    MemberEvent | WarAttack | WarMissedAttacks | CwlAttack | CwlMissedAttack | CwlLineupChange
+    MemberEvent
+    | WarAttack
+    | WarMissedAttacks
+    | CwlAttack
+    | CwlMissedAttack
+    | CwlLineupChange
+    | ClanGamesResult
+    | CapitalContribution
+    | CapitalRaidAttack
+    | CapitalWeeklySummaryRow
+    | DonationSummary
 )
 
 
@@ -64,7 +81,8 @@ class IgnoredMessage:
     """A structured parser diagnostic.
 
     Used when a message produces no event (unknown layout, malformed) and when
-    an event is emitted with a data-quality warning (missing war context).
+    an event is emitted with a data-quality warning (missing war context,
+    name-only identity, truncated leaderboard).
     """
 
     reason_code: str

@@ -193,8 +193,9 @@ source_message_id
 ### CapitalContribution
 
 ```text
-player_tag
-amount
+player_tag          # present on per-player capital logs
+player_name
+amount              # raw gold; no parser-side cap or clan-relative scaling
 occurred_at
 source_message_id
 ```
@@ -202,12 +203,34 @@ source_message_id
 ### CapitalRaidAttack
 
 ```text
-player_tag
+player_tag          # present on per-player capital logs
+player_name
 occurred_at
-raid_weekend_key
-metadata
+raid_weekend_key    # ClashPerk weekId: Friday YYYY-MM-DD of the raid weekend
+looted              # raw gold when the log exposes it
+attacks_used
+attacks_available
 source_message_id
 ```
+
+### CapitalWeeklySummaryRow
+
+Validation context from the Clan Capital Weekly Summary Log, not a primary
+scoring source. One Discord message lists several players by **name only**.
+
+```text
+player_tag          # null; never invented
+player_name
+kind                # raid | contribution
+amount              # raw looted gold (raid) or contributed gold (contribution)
+attacks_used        # raid rows only
+attacks_available   # raid rows only
+raid_weekend_key
+source_message_id
+```
+
+Per-player contribution and raid logs remain the primary source. Aggregation
+must not double-count these rows with `CapitalContribution` / `CapitalRaidAttack`.
 
 ### ClanGamesResult
 
@@ -216,23 +239,33 @@ The Clan Games leaderboard is a final-state snapshot rather than a stream of ind
 Normalize each leaderboard row:
 
 ```text
-player_tag
+player_tag          # null on name-only ClashPerk rows; never invented
 player_name
 points
-event_key
+occurrence_key      # Clan Games season id (YYYY-MM)
 source_message_id
 message_edited_at
 ```
 
+`occurrence_key` is the Clan Games occurrence from the scoreboard title / button
+`season`. Month attribution uses `message_edited_at` (the snapshot), not the
+message creation timestamp. The parser framework's de-duplication key remains
+`<message_id>:ClanGamesResult:<player_tag>:<row_index>` on the event's
+`event_key` property; it is a different field from this occurrence id.
+
 ### DonationSummary
 
-Optional V1 model:
+Optional V1 model, display-only. Must not feed the composite score.
+
+ClashPerk's daily/weekly/monthly donation log is **name-only**.
 
 ```text
-player_tag
+player_tag          # null on name-only ClashPerk rows; never invented
+player_name
 donated
 received
-summary_date
+summary_date        # UTC date of the range start (`<t:unix>` in the embed)
+interval            # daily | weekly | monthly
 source_message_id
 ```
 

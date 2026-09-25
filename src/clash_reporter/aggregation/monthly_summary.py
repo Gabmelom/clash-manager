@@ -93,7 +93,7 @@ def build_monthly_dataset(
 
 
 def _member_events(events: Sequence[DomainEvent]) -> list[MemberEvent]:
-    """Membership rows only; war/CWL events are name-only and stay out."""
+    """Membership rows only; name-only war/CWL/games/capital/donation events stay out."""
     members: list[MemberEvent] = []
     for event in events:
         if isinstance(event, MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged):
