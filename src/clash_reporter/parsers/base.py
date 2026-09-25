@@ -16,11 +16,13 @@ from clash_reporter.events import (
     CapitalRaidAttack,
     CapitalWeeklySummaryRow,
     ClanGamesResult,
+    CwlAttack,
+    CwlLineupChange,
+    CwlMissedAttack,
     DonationSummary,
-    MemberJoined,
-    MemberLeft,
-    PlayerNameChanged,
-    PlayerRoleChanged,
+    MemberEvent,
+    WarAttack,
+    WarMissedAttacks,
 )
 
 __all__ = [
@@ -31,8 +33,10 @@ __all__ = [
     "IGNORED_UNKNOWN_LAYOUT",
     "IGNORED_UNSUPPORTED_LOG",
     "IgnoredMessage",
+    "MemberEvent",
     "ParseOutcome",
     "Parser",
+    "WARNING_MISSING_WAR_CONTEXT",
     "deduplicate_events",
     "extract_player_tag",
     "is_valid_player_tag",
@@ -51,12 +55,19 @@ IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
 IGNORED_MISSING_ROWS = "missing_rows"
+# Data-quality warning on an *emitted* war/CWL attack that could not be joined
+# to a war embed or missed-attacks message. Not a dropped message.
+WARNING_MISSING_WAR_CONTEXT = "missing_war_context"
 
+# ``MemberEvent`` is the membership-only arm. ``DomainEvent`` is the full parser
+# union; aggregation must not treat it as tag-bearing membership rows.
 type DomainEvent = (
-    MemberJoined
-    | MemberLeft
-    | PlayerNameChanged
-    | PlayerRoleChanged
+    MemberEvent
+    | WarAttack
+    | WarMissedAttacks
+    | CwlAttack
+    | CwlMissedAttack
+    | CwlLineupChange
     | ClanGamesResult
     | CapitalContribution
     | CapitalRaidAttack
@@ -67,7 +78,12 @@ type DomainEvent = (
 
 @dataclass(frozen=True)
 class IgnoredMessage:
-    """A structured reason a message produced no event."""
+    """A structured parser diagnostic.
+
+    Used when a message produces no event (unknown layout, malformed) and when
+    an event is emitted with a data-quality warning (missing war context,
+    name-only identity, truncated leaderboard).
+    """
 
     reason_code: str
     detail: str

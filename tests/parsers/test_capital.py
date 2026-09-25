@@ -110,6 +110,34 @@ def test_weekly_contribution_summary_keeps_raw_totals(clashperk_message: Message
     assert all(event.player_tag is None for event in outcome.events)
 
 
+def test_weekly_rows_parse_comma_grouped_amounts(clashperk_message: Message) -> None:
+    message = deepcopy(clashperk_message("capital/weekly-contributions.json"))
+    message["embeds"][0]["description"] = (
+        "**Clan Capital Contributions**\n```\n"
+        "\u200e # TOTAL NAME\n"
+        "\u200e 1  1,200  Aurora\n"
+        "\u200e 2 22,443  Cascade\n"
+        "```"
+    )
+    by_name = {event.player_name: event for event in _parse(message).events}
+    assert by_name["Aurora"].amount == 1200
+    assert by_name["Cascade"].amount == 22443
+
+
+def test_weekly_raid_rows_parse_comma_grouped_loot(clashperk_message: Message) -> None:
+    message = deepcopy(clashperk_message("capital/weekly-summary.json"))
+    message["embeds"][0]["description"] = (
+        "**Clan Capital Raids**\n```\n"
+        "\u200e # LOOTED HITS  NAME\n"
+        "\u200e 1  22,443  6/6  Cascade\n"
+        "```"
+    )
+    event = _parse(message).events[0]
+    assert event.player_name == "Cascade"
+    assert event.amount == 22443
+    assert event.attacks_used == 6
+
+
 def test_contribution_without_tag_does_not_invent_one(clashperk_message: Message) -> None:
     message = deepcopy(clashperk_message("capital/contribution.json"))
     message["embeds"][0]["title"] = "\u200eAurora"

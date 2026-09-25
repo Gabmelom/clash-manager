@@ -15,6 +15,7 @@ from clash_reporter.events import (
     PlayerNameChanged,
     PlayerRoleChanged,
     SourceMetadata,
+    WarAttack,
 )
 from clash_reporter.scoring import rank_players
 from clash_reporter.window import month_window
@@ -261,3 +262,19 @@ def test_later_event_name_wins_over_earlier_name_change() -> None:
         left(AURORA, "Aurora", utc(2026, 8, 20), "leave"),
     ]
     assert latest_display_name(events) == "Aurora"
+
+
+def test_name_only_war_events_do_not_enter_membership_or_invent_tags() -> None:
+    attack_at = utc(2026, 8, 14, 21)
+    war_attack = WarAttack(
+        player_name="Aurora",
+        occurred_at=attack_at,
+        source=_source("war-attack", attack_at),
+        stars=3,
+        destruction_percent=100,
+    )
+    dataset = build_monthly_dataset([*_members_month_events(), war_attack], AUGUST)
+    tags = [player.player_tag for player in dataset.players]
+    assert tags == sorted(tags)
+    assert set(tags) == {AURORA, BOREALIS, CASCADE, DUNE}
+    assert all(tag.startswith("#") for tag in tags)

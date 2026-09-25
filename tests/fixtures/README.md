@@ -22,9 +22,12 @@ field ordering are transcribed from ClashPerk's own log builders in
 | `members/role-change.json` | `src/core/clan-log.ts` - `getPlayerLogEmbed`, `PROMOTED` |
 | `members/name-change.json` | `src/core/clan-log.ts` - `getPlayerLogEmbed`, `NAME_CHANGE` |
 | `wars/attack.json`, `cwl/attack.json` | `src/core/clan-war-log.ts` - `getAttackLogMessage` |
+| `wars/attack-missing-fields.json` | same builder; destruction / TH emojis omitted to pin `None` ≠ `0` |
 | `wars/missed-attacks.json`, `cwl/missed-attacks.json` | `src/core/clan-war-log.ts` - `getRemaining` |
 | `wars/embed-final.json` | `src/core/clan-war-log.ts` - `getRegularWarEmbed`, `warEnded` |
+| `cwl/embed-round.json` | `src/core/clan-war-log.ts` - `getLeagueWarEmbed`, `warEnded`, footer `Round #N` |
 | `cwl/lineup-change.json` | `src/core/clan-war-log.ts` - `getLineupChangeEmbed` |
+| `wars/unknown-layout.json`, `cwl/unknown-layout.json` | not a ClashPerk builder; unknown-layout diagnostics |
 | `capital/contribution.json`, `capital/raid-attack.json` | `src/core/clan-log.ts` - `CAPITAL_GOLD_CONTRIBUTION` / `CAPITAL_GOLD_RAID` |
 | `capital/weekly-summary.json` | `src/core/capital-log.ts` - `capitalAttacks` |
 | `capital/weekly-contributions.json` | `src/core/capital-log.ts` - `getCapitalContributionsEmbed` |

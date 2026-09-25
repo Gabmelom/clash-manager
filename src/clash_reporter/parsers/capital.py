@@ -67,10 +67,12 @@ _WEEKLY_RAIDS = re.compile(r"Clan Capital Raids", re.IGNORECASE)
 _WEEKLY_CONTRIBUTIONS = re.compile(r"Clan Capital Contributions", re.IGNORECASE)
 _WEEK_OF = re.compile(r"Week of\s+(.+)", re.IGNORECASE)
 _RAID_ROW = re.compile(
-    r"^\u200e?\s*(?P<rank>\d+)\s+(?P<looted>\d+)\s+"
+    r"^\u200e?\s*(?P<rank>\d+)\s+(?P<looted>[0-9][0-9,]*)\s+"
     r"(?P<used>\d+)/(?P<limit>\d+)\s+(?P<name>.+?)\s*$"
 )
-_CONTRIBUTION_ROW = re.compile(r"^\u200e?\s*(?P<rank>\d+)\s+(?P<amount>\d+)\s+(?P<name>.+?)\s*$")
+_CONTRIBUTION_ROW = re.compile(
+    r"^\u200e?\s*(?P<rank>\d+)\s+(?P<amount>[0-9][0-9,]*)\s+(?P<name>.+?)\s*$"
+)
 _HEADER = re.compile(r"^\u200e?\s*#\b")
 _MONTH_NAMES = {
     "january": 1,
@@ -389,13 +391,13 @@ def _parse_weekly_rows(
             rows.append(
                 (
                     name,
-                    int(match.group("looted")),
+                    parse_grouped_int(match.group("looted")),
                     int(match.group("used")),
                     int(match.group("limit")),
                 )
             )
         else:
-            rows.append((name, int(match.group("amount")), None, None))
+            rows.append((name, parse_grouped_int(match.group("amount")), None, None))
     return rows
 
 
