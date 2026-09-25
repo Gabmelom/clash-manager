@@ -1,5 +1,5 @@
 ---
-title: "Parser framework with diagnostics, plus the #cp-members parser"
+title: "Parser framework with diagnostics, plus the #members parser"
 labels: [phase-1, "area:parsers", needs-fixtures]
 depends_on: [fetch-raw-fixtures]
 ---
@@ -9,7 +9,7 @@ depends_on: [fetch-raw-fixtures]
 There are six ClashPerk log families to parse. Deciding message-type detection,
 diagnostics, and deduplication once - in a framework - keeps the five later parsers small
 and consistent. Members is the right first parser because membership drives eligibility, and
-`#cp-members` is the one channel whose absence fails the whole report.
+`#members` is the one channel whose absence fails the whole report.
 
 The hard rule from `docs/ARCHITECTURE.md`: an unrecognized message is a recorded diagnostic,
 never a silent drop.

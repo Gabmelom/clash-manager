@@ -1,4 +1,4 @@
-"""#cp-wars parser: regular war attacks, missed attacks, and embed context.
+"""#wars parser: regular war attacks, missed attacks, and embed context.
 
 ClashPerk's ``clan-war-log.ts`` is the payload contract. Attack logs are plain
 ``content`` (name-only). Missed-attacks and the war embed are embeds. CWL
@@ -49,7 +49,7 @@ _LOG_EMBED = "war_embed_log"
 
 
 class WarsParser:
-    """Pure parser for ClashPerk regular-war logs on ``#cp-wars``."""
+    """Pure parser for ClashPerk regular-war logs on ``#wars``."""
 
     name = WARS_PARSER_NAME
     version = WARS_PARSER_VERSION
@@ -74,7 +74,7 @@ class WarsParser:
             )
 
     def parse_channel(self, messages: Iterable[Mapping[str, Any]]) -> ParseOutcome:
-        """Parse a ``#cp-wars`` history and join attacks/misses onto one war key.
+        """Parse a ``#wars`` history and join attacks/misses onto one war key.
 
         Prefers ``war:{id}`` from the War Embed Log. When that embed is missing,
         falls back to ``fallback:{home}:{opponent}:{YYYY-MM-DD}`` from the

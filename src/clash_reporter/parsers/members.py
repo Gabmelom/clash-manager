@@ -1,4 +1,4 @@
-"""#cp-members parser: join, leave, role change, and name change.
+"""#members parser: join, leave, role change, and name change.
 
 ClashPerk's ``getPlayerLogEmbed`` (``src/core/clan-log.ts``) is the payload
 contract. Join and leave are identified from the embed footer; role and name

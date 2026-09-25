@@ -20,7 +20,7 @@ Four commands exist today:
     Fetches, normalizes, and renders one month. ``--post`` also delivers the
     report. Without it, the report is printed and nothing is posted. A required
     channel that cannot be read aborts before posting unless ``--allow-partial``
-    is set. An empty ``#cp-games`` history is a month with no Clan Games event.
+    is set. An empty ``#clan-games`` history is a month with no Clan Games event.
 
 Each command stays thin: window resolution, transport, capture, parsing, and
 aggregation live in their own modules.
@@ -307,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     normalize = subparsers.add_parser(
         "normalize",
         help=(
-            "Parse #cp-members from a fetch directory into a MonthlyDataset. "
+            "Parse #members from a fetch directory into a MonthlyDataset. "
             "Members-only: war/CWL/games/capital/donation fields stay missing."
         ),
     )
@@ -315,7 +315,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         type=Path,
         default=DEFAULT_RAW_OUTPUT,
-        help=f"Fetch output directory containing cp-members.json (default: {DEFAULT_RAW_OUTPUT}).",
+        help=f"Fetch output directory containing members.json (default: {DEFAULT_RAW_OUTPUT}).",
     )
     normalize.add_argument(
         "--output",

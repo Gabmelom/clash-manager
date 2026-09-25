@@ -26,18 +26,18 @@ def test_default_weights_sum_to_one() -> None:
 
 
 def test_run_requires_every_critical_channel(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(channel_env_var("cp-members"), "1")
+    monkeypatch.setenv(channel_env_var("members"), "1")
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
-    with pytest.raises(RuntimeError, match="DISCORD_CP_WARS_CHANNEL_ID"):
+    with pytest.raises(RuntimeError, match="DISCORD_WARS_CHANNEL_ID"):
         settings.channels_for_run(allow_partial=False)
     partial = settings.channels_for_run(allow_partial=True)
-    assert partial == {"cp-members": "1"}
+    assert partial == {"members": "1"}
 
 
 def test_run_includes_optional_donations_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     for index, name in enumerate(REQUIRED_DATA_CHANNELS, start=1):
         monkeypatch.setenv(channel_env_var(name), str(index))
-    monkeypatch.setenv(channel_env_var("cp-donations"), "9")
+    monkeypatch.setenv(channel_env_var("donations"), "9")
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     resolved = settings.channels_for_run(allow_partial=False)
-    assert set(resolved) == set(REQUIRED_DATA_CHANNELS) | {"cp-donations"}
+    assert set(resolved) == set(REQUIRED_DATA_CHANNELS) | {"donations"}

@@ -8,7 +8,7 @@ depends_on: [fetch-raw-fixtures, monthly-aggregation, post-report-to-discord]
 
 The last mile of V1: the job must wake once a month with no persistent infrastructure, build
 the previous month's report, post it, and exit. The failure policy matters as much as the
-happy path - a report missing `#cp-wars` data would quietly understate everyone, so it must
+happy path - a report missing `#wars` data would quietly understate everyone, so it must
 fail instead of posting.
 
 ## Scope
@@ -35,7 +35,7 @@ Multi-clan support and persisted history. Both are explicitly post-V1 in `ROADMA
 - [ ] A manual `workflow_dispatch` run completes end to end and posts one report to
       `#clan-reports`.
 - [ ] Artifacts are uploaded even when the job fails, since diagnostics matter most then.
-- [ ] Simulating an inaccessible `#cp-wars` fails the run and posts nothing.
+- [ ] Simulating an inaccessible `#wars` fails the run and posts nothing.
 - [ ] A month with no Clan Games event is a valid run, not a failure.
 - [ ] The bot token is never echoed into logs.
 - [ ] The cron time is documented together with the reasoning about UTC versus

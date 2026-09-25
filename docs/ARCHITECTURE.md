@@ -20,7 +20,7 @@ The project deliberately avoids direct integration with the Clash of Clans / Sup
        +---------------+----------------+
        |               |                |
        v               v                v
-   #cp-wars       #cp-members      other #cp-* channels
+   #wars          #members         other data channels
        \               |                /
         \              |               /
          +-------------+--------------+
@@ -144,11 +144,11 @@ For each workflow run, keep temporary artifacts such as:
 ```text
 artifacts/
   raw/
-    cp-members.json
-    cp-wars.json
-    cp-cwl.json
-    cp-capital.json
-    cp-games.json
+    members.json
+    wars.json
+    cwl.json
+    capital.json
+    clan-games.json
   normalized/
     events.json
     monthly_players.json
@@ -201,9 +201,9 @@ The monthly report should fail closed for missing critical data.
 
 Examples:
 
-- `#cp-members` inaccessible: fail report
-- `#cp-wars` inaccessible: fail report if war metrics are part of scoring
-- `#cp-games` has no Clan Games event that month: valid if no event occurred
+- `#members` inaccessible: fail report
+- `#wars` inaccessible: fail report if war metrics are part of scoring
+- `#clan-games` has no Clan Games event that month: valid if no event occurred
 - one unknown ClashPerk message format: record diagnostic, continue unless it affects a required metric
 
 Do not silently replace missing values with zero when zero would imply poor performance.

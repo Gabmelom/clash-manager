@@ -2,7 +2,7 @@
 
 An inaccessible required channel is missing critical data. A required channel
 that was read and happened to be empty is not: a month with no Clan Games
-event still has a successful ``#cp-games`` capture.
+event still has a successful ``#clan-games`` capture.
 """
 
 from __future__ import annotations

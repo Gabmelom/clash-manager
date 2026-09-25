@@ -67,13 +67,15 @@ jobs:
           # Secret. GitHub masks it in logs; the CLI also scrubs it from errors.
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           # IDs are not credentials. Accept either a repository variable or a secret.
+          # Names match the live channels: #members, #wars, #cwl, #capital,
+          # #clan-games (required) and #donations (optional).
           DISCORD_GUILD_ID: ${{ vars.DISCORD_GUILD_ID || secrets.DISCORD_GUILD_ID }}
-          DISCORD_CP_MEMBERS_CHANNEL_ID: ${{ vars.DISCORD_CP_MEMBERS_CHANNEL_ID || secrets.DISCORD_CP_MEMBERS_CHANNEL_ID }}
-          DISCORD_CP_WARS_CHANNEL_ID: ${{ vars.DISCORD_CP_WARS_CHANNEL_ID || secrets.DISCORD_CP_WARS_CHANNEL_ID }}
-          DISCORD_CP_CWL_CHANNEL_ID: ${{ vars.DISCORD_CP_CWL_CHANNEL_ID || secrets.DISCORD_CP_CWL_CHANNEL_ID }}
-          DISCORD_CP_CAPITAL_CHANNEL_ID: ${{ vars.DISCORD_CP_CAPITAL_CHANNEL_ID || secrets.DISCORD_CP_CAPITAL_CHANNEL_ID }}
-          DISCORD_CP_GAMES_CHANNEL_ID: ${{ vars.DISCORD_CP_GAMES_CHANNEL_ID || secrets.DISCORD_CP_GAMES_CHANNEL_ID }}
-          DISCORD_CP_DONATIONS_CHANNEL_ID: ${{ vars.DISCORD_CP_DONATIONS_CHANNEL_ID || secrets.DISCORD_CP_DONATIONS_CHANNEL_ID }}
+          DISCORD_MEMBERS_CHANNEL_ID: ${{ vars.DISCORD_MEMBERS_CHANNEL_ID || secrets.DISCORD_MEMBERS_CHANNEL_ID }}
+          DISCORD_WARS_CHANNEL_ID: ${{ vars.DISCORD_WARS_CHANNEL_ID || secrets.DISCORD_WARS_CHANNEL_ID }}
+          DISCORD_CWL_CHANNEL_ID: ${{ vars.DISCORD_CWL_CHANNEL_ID || secrets.DISCORD_CWL_CHANNEL_ID }}
+          DISCORD_CAPITAL_CHANNEL_ID: ${{ vars.DISCORD_CAPITAL_CHANNEL_ID || secrets.DISCORD_CAPITAL_CHANNEL_ID }}
+          DISCORD_CLAN_GAMES_CHANNEL_ID: ${{ vars.DISCORD_CLAN_GAMES_CHANNEL_ID || secrets.DISCORD_CLAN_GAMES_CHANNEL_ID }}
+          DISCORD_DONATIONS_CHANNEL_ID: ${{ vars.DISCORD_DONATIONS_CHANNEL_ID || secrets.DISCORD_DONATIONS_CHANNEL_ID }}
           DISCORD_REPORT_CHANNEL_ID: ${{ vars.DISCORD_REPORT_CHANNEL_ID || secrets.DISCORD_REPORT_CHANNEL_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE || 'America/Toronto' }}
           REPORT_MONTH: ${{ github.event.inputs.month || 'previous' }}

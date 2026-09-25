@@ -252,7 +252,7 @@ def parse_missed_embed(embed: Mapping[str, Any]) -> MissedAttacksEmbed | None:
     players = _missed_players(embed)
     # ClashPerk's CWL missed-attacks description is ``War Against (CWL Round N)``.
     # That round string is the only payload discriminator; parsers do not read
-    # Discord channel names. Operationally ``#cp-wars`` vs ``#cp-cwl`` is the
+    # Discord channel names. Operationally ``#wars`` vs ``#cwl`` is the
     # routing guarantee if the round text is ever absent.
     return MissedAttacksEmbed(
         clan_name=clan_name,

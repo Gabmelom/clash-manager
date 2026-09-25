@@ -155,7 +155,7 @@ Regular war and CWL are distinct event types and are never merged.
 
 CWL missed-attacks embeds are distinguished from regular-war missed-attacks by
 `(CWL Round N)` in the description. That is the only payload cue; parsers do
-not inspect Discord channel names. `#cp-wars` vs `#cp-cwl` is the operational
+not inspect Discord channel names. `#wars` vs `#cwl` is the operational
 routing guarantee if that round string is ever absent.
 
 ### CWL season key

@@ -179,4 +179,4 @@ def _summarize_diagnostics(diagnostics: Sequence[IgnoredMessage]) -> str:
     for item in diagnostics:
         counts[item.reason_code] = counts.get(item.reason_code, 0) + 1
     parts = [f"{count} {code}" for code, count in sorted(counts.items())]
-    return "Ignored #cp-members messages: " + ", ".join(parts) + "."
+    return "Ignored #members messages: " + ", ".join(parts) + "."

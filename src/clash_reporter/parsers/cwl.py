@@ -1,4 +1,4 @@
-"""#cp-cwl parser: CWL attacks, missed attacks, and lineup changes.
+"""#cwl parser: CWL attacks, missed attacks, and lineup changes.
 
 Regular-war payloads that land here are ``unsupported_log``, never ``Cwl*``.
 Attack logs are name-only plain ``content``; round number is filled in when a
@@ -55,7 +55,7 @@ _LOG_EMBED = "cwl_embed_log"
 
 
 class CwlParser:
-    """Pure parser for ClashPerk CWL logs on ``#cp-cwl``."""
+    """Pure parser for ClashPerk CWL logs on ``#cwl``."""
 
     name = CWL_PARSER_NAME
     version = CWL_PARSER_VERSION
@@ -80,7 +80,7 @@ class CwlParser:
             )
 
     def parse_channel(self, messages: Iterable[Mapping[str, Any]]) -> ParseOutcome:
-        """Parse a ``#cp-cwl`` history and group rounds into one season key."""
+        """Parse a ``#cwl`` history and group rounds into one season key."""
         collected = list(messages)
         outcome = parse_all(self, collected)
         return self._assign_season(outcome, collected)
