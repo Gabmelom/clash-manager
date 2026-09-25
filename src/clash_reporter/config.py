@@ -28,6 +28,17 @@ DATA_CHANNELS: Final[tuple[str, ...]] = (
     "cp-donations",
 )
 
+#: Channels the monthly report cannot omit. ``#cp-donations`` stays optional.
+#: An empty ``#cp-games`` capture is still a successful read: no Clan Games
+#: event that month is valid. Inaccessible is not the same thing.
+REQUIRED_DATA_CHANNELS: Final[tuple[str, ...]] = (
+    "cp-members",
+    "cp-wars",
+    "cp-cwl",
+    "cp-capital",
+    "cp-games",
+)
+
 
 def channel_env_var(name: str) -> str:
     """Environment variable holding the ID of a data channel."""
@@ -139,6 +150,21 @@ class Settings(BaseSettings):
                 "No ClashPerk data channels configured. Set at least one of: "
                 + ", ".join(channel_env_var(name) for name in DATA_CHANNELS)
             )
+        return resolved
+
+    def channels_for_run(self, *, allow_partial: bool) -> dict[str, str]:
+        """Channels for ``run``.
+
+        By default every required data channel must be configured, and
+        ``#cp-donations`` is included only when its ID is set. ``allow_partial``
+        keeps whatever is configured so a known-incomplete month can still post.
+        """
+        if allow_partial:
+            return self.require_data_channels()
+        resolved = self.require_data_channels(REQUIRED_DATA_CHANNELS)
+        donations = self.channel_id("cp-donations")
+        if donations:
+            resolved["cp-donations"] = donations
         return resolved
 
 

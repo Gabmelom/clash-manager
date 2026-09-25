@@ -18,7 +18,9 @@ Four commands exist today:
 
 ``run``
     Fetches, normalizes, and renders one month. ``--post`` also delivers the
-    report. Without it, the report is printed and nothing is posted.
+    report. Without it, the report is printed and nothing is posted. A required
+    channel that cannot be read aborts before posting unless ``--allow-partial``
+    is set. An empty ``#cp-games`` history is a month with no Clan Games event.
 
 Each command stays thin: window resolution, transport, capture, parsing, and
 aggregation live in their own modules.
@@ -36,6 +38,7 @@ from clash_reporter.aggregation import NormalizeError, normalize_capture
 from clash_reporter.aggregation.normalize import DEFAULT_NORMALIZED_OUTPUT, window_from_manifest
 from clash_reporter.collection import ChannelCaptureError, capture_channels
 from clash_reporter.collection.capture import MANIFEST_FILENAME
+from clash_reporter.completeness import posting_blockers
 from clash_reporter.config import DATA_CHANNELS, Settings
 from clash_reporter.discord_client import DiscordClient, DiscordError
 from clash_reporter.models import MonthlyDataset
@@ -50,6 +53,7 @@ from clash_reporter.scoring import rank_players
 from clash_reporter.window import InvalidMonthError, ReportingWindow, resolve_month
 
 DEFAULT_RAW_OUTPUT = Path("./artifacts/raw")
+DEFAULT_REPORT_OUTPUT = Path("./artifacts/report")
 
 
 def _load_dataset(path: Path) -> MonthlyDataset:
@@ -161,7 +165,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if args.post:
             settings.require_discord()
         token = settings.require_bot_token()
-        channels = settings.require_data_channels()
+        channels = settings.channels_for_run(allow_partial=args.allow_partial)
     except (InvalidMonthError, RuntimeError) as exc:
         return _fail(str(exc))
 
@@ -177,19 +181,46 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 window=window,
                 output_dir=args.raw_output,
                 sanitize=False,
+                allow_partial=args.allow_partial,
             )
             result = normalize_capture(args.raw_output, args.normalized_output, window=window)
         except (ChannelCaptureError, DiscordError, NormalizeError) as exc:
             return _fail(str(exc))
         for channel in capture.channels:
             print(f"  {channel.name}: {channel.message_count} messages -> {channel.path}")
+        for failure in capture.failures:
+            print(f"  {failure.name}: not captured ({failure.reason})", file=sys.stderr)
         print(f"  {result.player_count} players -> {result.dataset_path}")
         dataset = result.dataset.model_copy(update={"month_label": window.month_label})
         report, csv_text = _ranked_report(dataset, settings, args.top)
+        _write_rendered_report(args.report_output, report, csv_text)
+        blockers = posting_blockers(
+            [channel.name for channel in capture.channels],
+            {failure.name: failure.reason for failure in capture.failures},
+        )
+        if blockers and not args.allow_partial:
+            return _fail(
+                "Refusing to post an incomplete report. "
+                + " ".join(blockers)
+                + " Pass --allow-partial to post anyway."
+            )
+        if blockers:
+            print(
+                "warning: posting a partial report. " + " ".join(blockers),
+                file=sys.stderr,
+            )
         if not args.post:
             print(report)
             return 0
         return _post_report(settings, client, report, csv_text)
+
+
+def _write_rendered_report(output_dir: Path, report: str, csv_text: str) -> None:
+    """Persist the rendered report so a failed post still leaves an artifact."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    text = report if report.endswith("\n") else f"{report}\n"
+    (output_dir / "report.md").write_text(text, encoding="utf-8")
+    (output_dir / "report.csv").write_text(csv_text, encoding="utf-8")
 
 
 def _resolve_normalize_window(args: argparse.Namespace, timezone: str) -> ReportingWindow:
@@ -325,6 +356,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_NORMALIZED_OUTPUT,
         help=(f"Directory for the normalized dataset (default: {DEFAULT_NORMALIZED_OUTPUT})."),
     )
+    run.add_argument(
+        "--report-output",
+        type=Path,
+        default=DEFAULT_REPORT_OUTPUT,
+        help=f"Directory for report.md and report.csv (default: {DEFAULT_REPORT_OUTPUT}).",
+    )
     run.add_argument("--top", type=int, default=5, help="Number of top performers to show.")
     run.add_argument(
         "--post",
@@ -332,6 +369,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Post the report and a CSV attachment. Without this flag the report is "
             "printed and nothing is posted."
+        ),
+    )
+    run.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help=(
+            "Post even when a required channel is missing or inaccessible. "
+            "Off by default: an incomplete report is not posted."
         ),
     )
     run.set_defaults(func=_cmd_run)

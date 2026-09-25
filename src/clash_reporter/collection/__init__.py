@@ -8,6 +8,7 @@ from clash_reporter.collection.capture import (
     CaptureRun,
     ChannelCapture,
     ChannelCaptureError,
+    ChannelCaptureFailure,
     capture_channels,
 )
 from clash_reporter.collection.fetch_messages import collect_channel
@@ -17,6 +18,7 @@ __all__ = [
     "CaptureRun",
     "ChannelCapture",
     "ChannelCaptureError",
+    "ChannelCaptureFailure",
     "IdSanitizer",
     "capture_channels",
     "collect_channel",
