@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from clash_reporter.config import ScoringConfig
+from clash_reporter.discord_client import discord_content_length
 from clash_reporter.models import Membership, MonthlyDataset, MonthlyPlayerSummary, RegularWar
 from clash_reporter.reporting import render_report, split_report
 from clash_reporter.reporting.discord_report import SECTION_HEADERS
@@ -40,7 +41,7 @@ def test_long_report_splits_under_the_limit_without_orphaned_headers(
     chunks = split_report(report)
     assert len(chunks) > 1
     for chunk in chunks:
-        assert len(chunk) <= 2000
+        assert discord_content_length(chunk) <= 2000
         assert chunk.split("\n")[-1] not in SECTION_HEADERS
 
     def body(text: str) -> list[str]:
@@ -84,13 +85,24 @@ def test_header_is_not_parked_without_its_first_entry() -> None:
             "   War: 100% attacks used | 2.71 avg stars",
         ]
     )
-    limit = len(opening) + 10
+    limit = discord_content_length(opening) + 10
     chunks = split_report(report, limit=limit)
     assert len(chunks) == 2
     assert chunks[0] == opening
     assert chunks[1].startswith("⚠️ Needs Review\nPlayer X")
-    assert all(len(chunk) <= limit for chunk in chunks)
+    assert all(discord_content_length(chunk) <= limit for chunk in chunks)
     assert "⚠️ Needs Review" not in chunks[0]
+
+
+def test_split_counts_emoji_as_utf16_code_units() -> None:
+    """Python len would pack two trophy lines; Discord's UTF-16 count must not."""
+    entries = [f"{index}. {'🏆' * 10}" for index in range(1, 8)]
+    report = "🏆 Top Performers\n" + "\n".join(entries)
+    chunks = split_report(report, limit=50)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert discord_content_length(chunk) <= 50
+        assert len(chunk) < discord_content_length(chunk)
 
 
 def test_oversized_entry_is_refused() -> None:

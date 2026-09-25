@@ -35,6 +35,7 @@ __all__ = [
     "DiscordRequestError",
     "DiscordServerError",
     "DiscordUnauthorizedError",
+    "discord_content_length",
     "message_timestamp",
 ]
 
@@ -42,8 +43,15 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://discord.com/api"
 DEFAULT_API_VERSION = 10
-#: Discord message ``content`` limit. Reporting splits on this before posting.
+#: Discord message ``content`` limit, in UTF-16 code units. Reporting splits on this
+#: before posting. Python ``len`` counts code points and undercounts non-BMP emoji.
 DISCORD_MESSAGE_CONTENT_LIMIT = 2000
+
+
+def discord_content_length(content: str) -> int:
+    """Length Discord enforces: UTF-16 code units, not Python code points."""
+    return len(content.encode("utf-16-le")) // 2
+
 
 Attachment = tuple[str, bytes, str]
 DEFAULT_USER_AGENT = (
@@ -223,9 +231,10 @@ class DiscordClient:
         """
         if content == "":
             raise ValueError("content must be a non-empty string")
-        if len(content) > DISCORD_MESSAGE_CONTENT_LIMIT:
+        length = discord_content_length(content)
+        if length > DISCORD_MESSAGE_CONTENT_LIMIT:
             raise ValueError(
-                f"content is {len(content)} characters; Discord allows "
+                f"content is {length} UTF-16 code units; Discord allows "
                 f"{DISCORD_MESSAGE_CONTENT_LIMIT}"
             )
         path = f"/channels/{channel_id}/messages"

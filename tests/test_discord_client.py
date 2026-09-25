@@ -346,6 +346,16 @@ def test_post_message_uploads_a_multipart_attachment() -> None:
     assert TOKEN not in body.decode()
 
 
+def test_post_message_counts_emoji_in_utf16_code_units() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("over-long content must not be sent")
+
+    # 1001 trophies: Python len is 1001, Discord counts 2002 UTF-16 code units.
+    with build_client(handler) as client:
+        with pytest.raises(ValueError, match="UTF-16"):
+            client.post_message("555", "🏆" * 1001)
+
+
 def test_post_message_rejects_content_over_the_discord_limit() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("over-long content must not be sent")

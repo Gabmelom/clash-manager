@@ -430,6 +430,65 @@ def test_run_without_post_fetches_and_prints_without_posting(
     assert (tmp_path / "normalized" / "monthly_players.json").is_file()
 
 
+def test_run_post_sends_the_report_and_csv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "POST":
+            return httpx.Response(200, json={"id": "1"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "1",
+                    "timestamp": "2026-08-03T18:12:44.281000+00:00",
+                    "content": "",
+                    "embeds": [],
+                }
+            ],
+        )
+
+    def build(token: str, **kwargs: Any) -> DiscordClient:
+        return DiscordClient(
+            token,
+            transport=httpx.MockTransport(handler),
+            sleep=lambda _seconds: None,
+            max_retries=0,
+            **kwargs,
+        )
+
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("DISCORD_CP_MEMBERS_CHANNEL_ID", MEMBERS_CHANNEL)
+    monkeypatch.setenv("DISCORD_REPORT_CHANNEL_ID", REPORT_CHANNEL)
+    monkeypatch.setattr(cli, "DiscordClient", build)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--month",
+            "2026-08",
+            "--post",
+            "--raw-output",
+            str(tmp_path / "raw"),
+            "--normalized-output",
+            str(tmp_path / "normalized"),
+        ]
+    )
+    assert exit_code == 0
+    posts = [request for request in seen if request.method == "POST"]
+    assert [request.method for request in seen] == ["GET", "POST"]
+    assert posts[0].url.path.endswith(f"/channels/{REPORT_CHANNEL}/messages")
+    body = posts[0].read().decode()
+    assert "clan-report.csv" in body
+    assert "Player Tag" in body
+    assert "Posted 1 message" in capsys.readouterr().out
+
+
 def test_run_post_without_report_channel_posts_nothing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

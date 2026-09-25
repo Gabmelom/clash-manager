@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from clash_reporter.discord_client import DISCORD_MESSAGE_CONTENT_LIMIT
+from clash_reporter.discord_client import DISCORD_MESSAGE_CONTENT_LIMIT, discord_content_length
 from clash_reporter.reporting.discord_report import (
     SECTION_HEADERS,
     SECTION_REVIEW,
@@ -23,12 +23,16 @@ __all__ = ["ReportSplitError", "split_report"]
 _NUMBERED_ENTRY = re.compile(r"^\d+\. ")
 
 
+def _units(text: str) -> int:
+    return discord_content_length(text)
+
+
 class ReportSplitError(ValueError):
     """The report cannot be posted without cutting an entry or dropping a header."""
 
 
 def split_report(report: str, *, limit: int = DISCORD_MESSAGE_CONTENT_LIMIT) -> list[str]:
-    """Return ordered message bodies, each at most ``limit`` characters."""
+    """Return ordered message bodies, each at most ``limit`` UTF-16 code units."""
     if limit < 1:
         raise ValueError("limit must be positive")
     pieces = _pieces(report, limit)
@@ -41,9 +45,9 @@ def _pieces(report: str, limit: int) -> list[str]:
     preamble, sections = _parse_sections(report)
     pieces: list[str] = []
     if preamble:
-        if len(preamble) > limit:
+        if _units(preamble) > limit:
             raise ReportSplitError(
-                f"Report header is {len(preamble)} characters, over the {limit} limit"
+                f"Report header is {_units(preamble)} UTF-16 code units, over the {limit} limit"
             )
         pieces.append(preamble)
     for header, body in sections:
@@ -87,30 +91,30 @@ def _trim_edges(lines: list[str]) -> list[str]:
 def _section_pieces(header: str, body: list[str], limit: int) -> list[str]:
     entries = _entries(header, body)
     if not entries:
-        if len(header) > limit:
+        if _units(header) > limit:
             raise ReportSplitError(f"Section header {header!r} exceeds the {limit} limit")
         return [header]
     whole = _render(header, entries)
-    if len(whole) <= limit:
+    if _units(whole) <= limit:
         return [whole]
 
     pieces: list[str] = []
     batch: list[str] = []
     for entry in entries:
         candidate = _render(header, [*batch, entry])
-        if len(candidate) <= limit:
+        if _units(candidate) <= limit:
             batch.append(entry)
             continue
         if not batch:
             raise ReportSplitError(
-                f"Section {header!r} has an entry of {len(candidate)} characters, "
+                f"Section {header!r} has an entry of {_units(candidate)} UTF-16 code units, "
                 f"over the {limit} limit. Refusing to split mid-entry."
             )
         pieces.append(_render(header, batch))
         alone = _render(header, [entry])
-        if len(alone) > limit:
+        if _units(alone) > limit:
             raise ReportSplitError(
-                f"Section {header!r} has an entry of {len(alone)} characters, "
+                f"Section {header!r} has an entry of {_units(alone)} UTF-16 code units, "
                 f"over the {limit} limit. Refusing to split mid-entry."
             )
         batch = [entry]
@@ -154,12 +158,12 @@ def _pack(pieces: list[str], limit: int) -> list[str]:
             buffer.clear()
 
     for piece in pieces:
-        if len(piece) > limit:
+        if _units(piece) > limit:
             raise ReportSplitError(
-                f"A report section is {len(piece)} characters, over the {limit} limit"
+                f"A report section is {_units(piece)} UTF-16 code units, over the {limit} limit"
             )
         trial = piece if not buffer else "\n\n".join([*buffer, piece])
-        if len(trial) <= limit:
+        if _units(trial) <= limit:
             buffer.append(piece)
             continue
         flush()
