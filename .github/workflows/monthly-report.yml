@@ -21,6 +21,13 @@ on:
   schedule:
     - cron: "0 5 1 * *"
 
+# One report at a time. A dispatch that overlaps the cron waits instead of
+# posting concurrently. cancel-in-progress is false so a run already posting
+# is not aborted mid-message; the waiter still posts when it starts.
+concurrency:
+  group: monthly-report
+  cancel-in-progress: false
+
 permissions:
   contents: read
   actions: write
