@@ -22,12 +22,6 @@
           },
           "style": 2,
           "type": 2
-        },
-        {
-          "custom_id": "{\"cmd\":\"clan-games\",\"max\":true,\"filter\":false,\"tag\":\"#2QP9VL8C\",\"season\":\"2026-08\"}",
-          "label": "Maximum Points",
-          "style": 1,
-          "type": 2
         }
       ],
       "type": 1
@@ -41,16 +35,16 @@
         "icon_url": "https://api-assets.clashofclans.com/badges/200/EXAMPLEBADGEHASH.png",
         "name": "Maple Legends (#2QP9VL8C)"
       },
-      "description": "**[Clan Games Scoreboard (2026-08)](https://clashperk.com/faq)**\n```\n‎ # POINTS   NAME                \n‎ 1   4000   Aurora\n‎ 2   4000   Cascade\n‎ 3   2650   Everest\n‎ 4      0   Dune\n```\n<:ClanGames:765244426444079115> `10650 -------------- 12000 (Tier 3)`",
+      "description": "**[Clan Games Scoreboard (2026-08)](https://clashperk.com/faq)**\n```\n‎ # POINTS   NAME                \n‎ 1   4000   Aurora\n‎ 2   4000   Cascade\n```\n<:ClanGames:765244426444079115> `10650 -------------- 12000 (Tier 3)`",
       "footer": {
-        "text": "Points: 10650 [Avg: 2662.50]"
+        "text": "Points: 10650 [Avg: 266.25]"
       },
       "timestamp": "2026-08-28T10:30:14.096000+00:00",
       "type": "rich"
     }
   ],
   "flags": 0,
-  "id": "1540601448164367119",
+  "id": "1540601448164367120",
   "mention_everyone": false,
   "mention_roles": [],
   "mentions": [],

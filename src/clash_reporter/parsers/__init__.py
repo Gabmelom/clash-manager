@@ -14,10 +14,16 @@ from clash_reporter.parsers.base import (
     normalize_player_tag,
     parse_all,
 )
+from clash_reporter.parsers.capital import CapitalParser
+from clash_reporter.parsers.clan_games import ClanGamesParser
+from clash_reporter.parsers.donations import DonationsParser
 from clash_reporter.parsers.members import MembersParser
 
 __all__ = [
+    "CapitalParser",
+    "ClanGamesParser",
     "DomainEvent",
+    "DonationsParser",
     "IgnoredMessage",
     "MembersParser",
     "ParseOutcome",

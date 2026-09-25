@@ -1,0 +1,42 @@
+{
+  "attachments": [],
+  "author": {
+    "avatar": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "bot": true,
+    "discriminator": "0000",
+    "flags": 0,
+    "global_name": null,
+    "id": "300000000000000006",
+    "public_flags": 0,
+    "username": "ClashPerk"
+  },
+  "channel_id": "400000000000000006",
+  "components": [],
+  "content": "",
+  "edited_timestamp": null,
+  "embeds": [
+    {
+      "author": {
+        "icon_url": "https://api-assets.clashofclans.com/badges/512/EXAMPLEBADGEHASH.png",
+        "name": "Maple Legends (#2QP9VL8C)"
+      },
+      "color": 5793266,
+      "description": "**Daily Donations**\n<t:1786665600> - <t:1786752000>\n\n`  8420  5210 ` ‎Aurora\n`  6100  6450 ` ‎Cascade\n`     0  1200 ` ‎Dune",
+      "footer": {
+        "text": "[14520 DON | 12860 REC]"
+      },
+      "timestamp": "2026-08-15T00:15:02.480000+00:00",
+      "type": "rich"
+    }
+  ],
+  "flags": 0,
+  "id": "1537977886882536194",
+  "mention_everyone": false,
+  "mention_roles": [],
+  "mentions": [],
+  "pinned": false,
+  "timestamp": "2026-08-15T00:15:02.480000+00:00",
+  "tts": false,
+  "type": 0,
+  "webhook_id": "300000000000000006"
+}

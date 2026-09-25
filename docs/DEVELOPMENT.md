@@ -222,9 +222,13 @@ tests/fixtures/
     contribution.json
     raid-attack.json
     weekly-summary.json
+    weekly-contributions.json
   clan-games/
     final-leaderboard.json
+    cross-month-leaderboard.json
+    truncated-leaderboard.json
   donations/
+    daily.json
     monthly-summary.json
   normalized/
     monthly_players.sample.json

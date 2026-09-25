@@ -70,7 +70,12 @@ def build_monthly_dataset(
     clan_name: str = "Clan",
 ) -> MonthlyDataset:
     """Players keyed by tag, membership filled, activity metrics left missing."""
-    roster = reconstruct_membership(events, window)
+    member_events = [
+        event
+        for event in events
+        if isinstance(event, MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged)
+    ]
+    roster = reconstruct_membership(member_events, window)
     events_by_tag = _events_by_tag(events, window)
     players = [
         _player_summary(membership, events_by_tag.get(tag, ()))
@@ -97,7 +102,10 @@ def _events_by_tag(
     for event in events:
         if not window.contains(event.occurred_at):
             continue
-        grouped.setdefault(event.player_tag, []).append(event)
+        tag = event.player_tag
+        if tag is None:
+            continue
+        grouped.setdefault(tag, []).append(event)
     return grouped
 
 

@@ -12,6 +12,11 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from clash_reporter.events import (
+    CapitalContribution,
+    CapitalRaidAttack,
+    CapitalWeeklySummaryRow,
+    ClanGamesResult,
+    DonationSummary,
     MemberJoined,
     MemberLeft,
     PlayerNameChanged,
@@ -22,12 +27,12 @@ __all__ = [
     "DomainEvent",
     "IGNORED_MALFORMED",
     "IGNORED_MISSING_PLAYER_TAG",
+    "IGNORED_MISSING_ROWS",
     "IGNORED_UNKNOWN_LAYOUT",
     "IGNORED_UNSUPPORTED_LOG",
     "IgnoredMessage",
     "ParseOutcome",
     "Parser",
-    "DomainEvent",
     "deduplicate_events",
     "extract_player_tag",
     "is_valid_player_tag",
@@ -45,10 +50,19 @@ IGNORED_MALFORMED = "malformed"
 IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
+IGNORED_MISSING_ROWS = "missing_rows"
 
-# Closed to membership events in this PR. Widen the union (and ``__all__``)
-# when war, CWL, games, or capital parsers start emitting their own types.
-type DomainEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged
+type DomainEvent = (
+    MemberJoined
+    | MemberLeft
+    | PlayerNameChanged
+    | PlayerRoleChanged
+    | ClanGamesResult
+    | CapitalContribution
+    | CapitalRaidAttack
+    | CapitalWeeklySummaryRow
+    | DonationSummary
+)
 
 
 @dataclass(frozen=True)

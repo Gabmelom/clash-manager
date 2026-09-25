@@ -27,8 +27,12 @@ field ordering are transcribed from ClashPerk's own log builders in
 | `cwl/lineup-change.json` | `src/core/clan-war-log.ts` - `getLineupChangeEmbed` |
 | `capital/contribution.json`, `capital/raid-attack.json` | `src/core/clan-log.ts` - `CAPITAL_GOLD_CONTRIBUTION` / `CAPITAL_GOLD_RAID` |
 | `capital/weekly-summary.json` | `src/core/capital-log.ts` - `capitalAttacks` |
+| `capital/weekly-contributions.json` | `src/core/capital-log.ts` - `getCapitalContributionsEmbed` |
 | `clan-games/final-leaderboard.json` | `src/helper/clan-games.helper.ts` - `clanGamesEmbedMaker` |
-| `donations/monthly-summary.json` | `src/core/donation-log.ts` - `rangeDonation` |
+| `clan-games/cross-month-leaderboard.json` | same builder; creation in August, last edit in September |
+| `clan-games/truncated-leaderboard.json` | same builder; two visible rows, footer still implying a full roster |
+| `donations/daily.json` | `src/core/donation-log.ts` - `rangeDonation` (`Daily Donations`) |
+| `donations/monthly-summary.json` | `src/core/donation-log.ts` - `rangeDonation` (`Monthly Donations`) |
 
 Emoji IDs, embed colors, and role names come from `src/util/emojis.ts` and
 `src/util/constants.ts` (`COLOR_CODES`, `PLAYER_ROLES_MAP`).
