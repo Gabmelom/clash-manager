@@ -9,14 +9,15 @@ from typing import Any
 from clash_reporter.events import CwlAttack, WarAttack, WarMissedAttacks
 from clash_reporter.parsers.base import (
     IGNORED_MALFORMED,
-    IGNORED_MISSING_WAR_CONTEXT,
     IGNORED_UNKNOWN_LAYOUT,
     IGNORED_UNSUPPORTED_LOG,
+    WARNING_MISSING_WAR_CONTEXT,
     make_event_key,
     parse_all,
 )
 from clash_reporter.parsers.war_layout import (
     fallback_war_key,
+    parse_missed_embed,
     parse_regular_war_embed,
     war_reporting_month,
 )
@@ -257,7 +258,8 @@ def test_attack_without_war_context_is_diagnosed(clashperk_message: Message) -> 
     attacks = [event for event in outcome.events if isinstance(event, WarAttack)]
     assert attacks
     assert all(event.war_id_or_key is None for event in attacks)
-    assert any(item.reason_code == IGNORED_MISSING_WAR_CONTEXT for item in outcome.diagnostics)
+    assert any(item.reason_code == WARNING_MISSING_WAR_CONTEXT for item in outcome.diagnostics)
+    # Attack is still emitted; the diagnostic is a join warning, not a drop.
 
 
 def test_defense_line_is_not_a_clan_attack(clashperk_message: Message) -> None:
@@ -274,3 +276,21 @@ def test_reporting_month_helper_uses_end_not_start() -> None:
     end = datetime.fromisoformat("2026-08-01T01:00:00+00:00")
     assert war_reporting_month(start) == "2026-07"
     assert war_reporting_month(end) == "2026-08"
+
+
+def test_cwl_missed_without_round_text_is_not_flagged_cwl(
+    clashperk_message: Message,
+) -> None:
+    message = deepcopy(clashperk_message("cwl/missed-attacks.json"))
+    message["embeds"][0]["description"] = message["embeds"][0]["description"].replace(
+        " (CWL Round 3)", ""
+    )
+    parsed = parse_missed_embed(message["embeds"][0])
+    assert parsed is not None
+    assert parsed.is_cwl is False
+    assert parsed.round_number is None
+    # WarsParser would then accept it as a regular-war miss; CwlParser rejects
+    # it as regular_war_missed_attacks. Channel routing is the V1 guarantee.
+    outcome = _parse(message)
+    assert len(outcome.events) == 1
+    assert isinstance(outcome.events[0], WarMissedAttacks)

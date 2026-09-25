@@ -133,6 +133,10 @@ occurred_at
 source_message_id
 ```
 
+ClashPerk missed-attacks and lineup lines include a map-position emoji. The
+parser reads it to split the line, but V1 event models do not store it.
+Preserve that if identity or aggregation later needs map order (issues #11 / #12).
+
 ### CwlAttack
 
 Same basic structure as `WarAttack`, plus:
@@ -148,6 +152,11 @@ parser fills `round_number` only after joining the attack to a CWL embed or
 missed-attacks message in the same channel.
 
 Regular war and CWL are distinct event types and are never merged.
+
+CWL missed-attacks embeds are distinguished from regular-war missed-attacks by
+`(CWL Round N)` in the description. That is the only payload cue; parsers do
+not inspect Discord channel names. `#cp-wars` vs `#cp-cwl` is the operational
+routing guarantee if that round string is ever absent.
 
 ### CWL season key
 
@@ -387,7 +396,8 @@ Examples:
 - unknown ClashPerk embed layout
 - player name found but no player tag available
 - duplicate conflicting event
-- missed-attack record without corresponding war context
+- missed-attack / war-attack record without corresponding war context
+  (warning on an emitted event; the row is not dropped)
 - Clan Games leaderboard missing expected rows
 - member left with no known prior join event
 

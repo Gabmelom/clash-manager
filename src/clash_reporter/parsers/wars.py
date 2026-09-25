@@ -13,9 +13,9 @@ from typing import Any
 from clash_reporter.events import SourceMetadata, WarAttack, WarMissedAttacks
 from clash_reporter.parsers.base import (
     IGNORED_MALFORMED,
-    IGNORED_MISSING_WAR_CONTEXT,
     IGNORED_UNKNOWN_LAYOUT,
     IGNORED_UNSUPPORTED_LOG,
+    WARNING_MISSING_WAR_CONTEXT,
     DomainEvent,
     IgnoredMessage,
     ParseOutcome,
@@ -276,7 +276,7 @@ class WarsParser:
                     events.append(event)
                     diagnostics.append(
                         IgnoredMessage(
-                            reason_code=IGNORED_MISSING_WAR_CONTEXT,
+                            reason_code=WARNING_MISSING_WAR_CONTEXT,
                             detail="war_attack without matching war embed or missed-attacks",
                             message_id=event.source.message_id,
                             channel_id=event.source.channel_id or None,

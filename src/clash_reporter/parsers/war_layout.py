@@ -79,6 +79,8 @@ class AttackLine:
 class MissedPlayer:
     player_name: str
     missed_count: int
+    # Map-position emoji from ClashPerk. Used to parse the line; not stored on
+    # V1 event models (see DATA_CONTRACT).
     map_position: int | None
 
 
@@ -248,6 +250,10 @@ def parse_missed_embed(embed: Mapping[str, Any]) -> MissedAttacksEmbed | None:
     opponent_name, opponent_tag = _opponent_from_text(description)
     round_number = _cwl_round(description)
     players = _missed_players(embed)
+    # ClashPerk's CWL missed-attacks description is ``War Against (CWL Round N)``.
+    # That round string is the only payload discriminator; parsers do not read
+    # Discord channel names. Operationally ``#cp-wars`` vs ``#cp-cwl`` is the
+    # routing guarantee if the round text is ever absent.
     return MissedAttacksEmbed(
         clan_name=clan_name,
         clan_tag=clan_tag,
@@ -466,6 +472,10 @@ def _war_embed_context(
     elif discord_times:
         # In-war embeds include ``End Time: <t:unix:R>``.
         ended_at = discord_times[-1]
+    # ClashPerk creates the war embed at prep start and edits it through
+    # warEnded, so ``message.timestamp`` is the start bound. A capture whose
+    # first post is already the final edit has no prep timestamp; matching then
+    # uses the 48h window behind ``ended_at``.
     started_at = message_timestamp
     return WarEmbedContext(
         war_id=extract_war_id(message),

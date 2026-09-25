@@ -18,6 +18,7 @@ __all__ = [
     "CwlAttack",
     "CwlLineupChange",
     "CwlMissedAttack",
+    "MemberEvent",
     "MemberJoined",
     "MemberLeft",
     "PlayerNameChanged",
@@ -160,3 +161,9 @@ class CwlLineupChange(_IndexedNameEvent):
     opponent_tag: str | None = None
     ended_at: datetime | None = None
     reporting_month: str | None = None
+
+
+# Membership logs always carry a player tag. War/CWL events are a separate
+# union arm (``DomainEvent`` in ``clash_reporter.parsers.base``) because those
+# logs are name-only (``player_tag=None``).
+type MemberEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged

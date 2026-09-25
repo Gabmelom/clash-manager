@@ -17,6 +17,7 @@ from clash_reporter.aggregation.membership import (
     reconstruct_membership,
 )
 from clash_reporter.events import (
+    MemberEvent,
     MemberJoined,
     MemberLeft,
     PlayerNameChanged,
@@ -70,7 +71,8 @@ def build_monthly_dataset(
     clan_name: str = "Clan",
 ) -> MonthlyDataset:
     """Players keyed by tag, membership filled, activity metrics left missing."""
-    roster = reconstruct_membership(events, window)
+    member_events = _member_events(events)
+    roster = reconstruct_membership(member_events, window)
     events_by_tag = _events_by_tag(events, window)
     players = [
         _player_summary(membership, events_by_tag.get(tag, ()))
@@ -90,6 +92,15 @@ def build_monthly_dataset(
     )
 
 
+def _member_events(events: Sequence[DomainEvent]) -> list[MemberEvent]:
+    """Membership rows only; war/CWL events are name-only and stay out."""
+    members: list[MemberEvent] = []
+    for event in events:
+        if isinstance(event, MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged):
+            members.append(event)
+    return members
+
+
 def _events_by_tag(
     events: Sequence[DomainEvent], window: ReportingWindow
 ) -> dict[str, list[DomainEvent]]:
@@ -97,7 +108,10 @@ def _events_by_tag(
     for event in events:
         if not window.contains(event.occurred_at):
             continue
-        grouped.setdefault(event.player_tag, []).append(event)
+        tag = event.player_tag
+        if tag is None:
+            continue
+        grouped.setdefault(tag, []).append(event)
     return grouped
 
 

@@ -8,6 +8,7 @@ here, and no name→tag resolver (see ``AGENTS.md``, Known deferred decisions).
 from clash_reporter.parsers.base import (
     DomainEvent,
     IgnoredMessage,
+    MemberEvent,
     ParseOutcome,
     Parser,
     make_event_key,
@@ -23,6 +24,7 @@ __all__ = [
     "CwlParser",
     "DomainEvent",
     "IgnoredMessage",
+    "MemberEvent",
     "MembersParser",
     "ParseOutcome",
     "Parser",

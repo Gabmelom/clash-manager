@@ -15,10 +15,7 @@ from clash_reporter.events import (
     CwlAttack,
     CwlLineupChange,
     CwlMissedAttack,
-    MemberJoined,
-    MemberLeft,
-    PlayerNameChanged,
-    PlayerRoleChanged,
+    MemberEvent,
     WarAttack,
     WarMissedAttacks,
 )
@@ -27,13 +24,13 @@ __all__ = [
     "DomainEvent",
     "IGNORED_MALFORMED",
     "IGNORED_MISSING_PLAYER_TAG",
-    "IGNORED_MISSING_WAR_CONTEXT",
     "IGNORED_UNKNOWN_LAYOUT",
     "IGNORED_UNSUPPORTED_LOG",
     "IgnoredMessage",
+    "MemberEvent",
     "ParseOutcome",
     "Parser",
-    "DomainEvent",
+    "WARNING_MISSING_WAR_CONTEXT",
     "deduplicate_events",
     "extract_player_tag",
     "is_valid_player_tag",
@@ -50,27 +47,25 @@ _TAG_MIN_LENGTH = 3
 IGNORED_MALFORMED = "malformed"
 IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
-IGNORED_MISSING_WAR_CONTEXT = "missing_war_context"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
+# Data-quality warning on an *emitted* war/CWL attack that could not be joined
+# to a war embed or missed-attacks message. Not a dropped message.
+WARNING_MISSING_WAR_CONTEXT = "missing_war_context"
 
-# Closed to membership, regular-war, and CWL events. Widen the union (and
-# ``__all__``) when games or capital parsers start emitting their own types.
+# ``MemberEvent`` is the membership-only arm. ``DomainEvent`` is the full parser
+# union; aggregation must not treat it as tag-bearing membership rows.
 type DomainEvent = (
-    MemberJoined
-    | MemberLeft
-    | PlayerNameChanged
-    | PlayerRoleChanged
-    | WarAttack
-    | WarMissedAttacks
-    | CwlAttack
-    | CwlMissedAttack
-    | CwlLineupChange
+    MemberEvent | WarAttack | WarMissedAttacks | CwlAttack | CwlMissedAttack | CwlLineupChange
 )
 
 
 @dataclass(frozen=True)
 class IgnoredMessage:
-    """A structured reason a message produced no event."""
+    """A structured parser diagnostic.
+
+    Used when a message produces no event (unknown layout, malformed) and when
+    an event is emitted with a data-quality warning (missing war context).
+    """
 
     reason_code: str
     detail: str
