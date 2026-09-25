@@ -211,9 +211,19 @@ Only after that works should Discord fetching and GitHub Actions scheduling be a
 ```bash
 clash-reporter report --input tests/fixtures/normalized/monthly_players.sample.json --dry-run
 clash-reporter report --input ./artifacts/normalized/monthly_players.json --month previous --dry-run
+clash-reporter report --input ./artifacts/normalized/monthly_players.json --post
 ```
 
-`--month` accepts `YYYY-MM`, `previous`, or `current` and labels the report from the reporting window instead of trusting the label stored in the dataset.
+`--month` accepts `YYYY-MM`, `previous`, or `current` and labels the report from the reporting window instead of trusting the label stored in the dataset. `--dry-run` and `--post` are mutually exclusive. `--post` sends the report to `DISCORD_REPORT_CHANNEL_ID` and attaches a CSV of ranking-eligible members. A report over Discord's 2000-character limit is split on section boundaries.
+
+### Run one month end to end
+
+```bash
+clash-reporter run --month previous
+clash-reporter run --month previous --post
+```
+
+`run` fetches raw logs, normalizes them, and renders the report. `--post` delivers that report. Without `--post`, the report is printed and nothing is posted. Fetch still needs `DISCORD_BOT_TOKEN` and the data-channel IDs.
 
 ### Capture raw ClashPerk payloads
 
@@ -285,6 +295,10 @@ python -m clash_reporter report --input ./artifacts/normalized/monthly_players.j
 Reading Discord works too: `clash-reporter fetch` resolves a timezone-aware reporting month
 and captures raw ClashPerk payloads to JSON.
 
-Still missing: war/CWL/games/capital/donation parsers, and the rest of issue #11
-aggregation. The remaining V1 work is tracked in GitHub issues, seeded from
-[`.github/backlog/`](.github/backlog).
+`clash-reporter report --post` delivers that report to `#clan-reports`, and
+`clash-reporter run --month previous --post` runs fetch, normalize, report, and
+post together.
+
+Still missing: wiring the war/CWL/games/capital/donation parsers into aggregation,
+and the monthly GitHub Action. The remaining V1 work is tracked in GitHub issues,
+seeded from [`.github/backlog/`](.github/backlog).

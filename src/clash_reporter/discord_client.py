@@ -9,9 +9,10 @@ V1 never opens a Gateway/websocket connection.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from datetime import datetime
 from types import TracebackType
 from typing import Any
@@ -24,6 +25,8 @@ from clash_reporter.window import parse_iso_timestamp
 __all__ = [
     "DEFAULT_API_VERSION",
     "DEFAULT_BASE_URL",
+    "DISCORD_MESSAGE_CONTENT_LIMIT",
+    "Attachment",
     "DiscordClient",
     "DiscordError",
     "DiscordForbiddenError",
@@ -39,6 +42,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://discord.com/api"
 DEFAULT_API_VERSION = 10
+#: Discord message ``content`` limit. Reporting splits on this before posting.
+DISCORD_MESSAGE_CONTENT_LIMIT = 2000
+
+Attachment = tuple[str, bytes, str]
 DEFAULT_USER_AGENT = (
     f"DiscordBot (https://github.com/Gabmelom/clash-manager, {__version__}) clash-reporter"
 )
@@ -201,17 +208,76 @@ class DiscordClient:
                 return
             cursor = page[-1]["id"]
 
+    def post_message(
+        self,
+        channel_id: str | int,
+        content: str,
+        *,
+        attachment: Attachment | None = None,
+    ) -> dict[str, Any]:
+        """Post ``content`` to a channel.
+
+        ``attachment`` is ``(filename, data, content_type)``. When present the
+        request is ``multipart/form-data`` with a ``payload_json`` part, which
+        is how Discord accepts a message and a file together.
+        """
+        if content == "":
+            raise ValueError("content must be a non-empty string")
+        if len(content) > DISCORD_MESSAGE_CONTENT_LIMIT:
+            raise ValueError(
+                f"content is {len(content)} characters; Discord allows "
+                f"{DISCORD_MESSAGE_CONTENT_LIMIT}"
+            )
+        path = f"/channels/{channel_id}/messages"
+        context = f"channel {channel_id}"
+        if attachment is None:
+            response = self._request(
+                "POST",
+                path,
+                json_body={"content": content},
+                context=context,
+            )
+        else:
+            filename, data, content_type = attachment
+            if not filename:
+                raise ValueError("attachment requires a filename")
+            payload = {
+                "content": content,
+                "attachments": [{"id": 0, "filename": filename}],
+            }
+            response = self._request(
+                "POST",
+                path,
+                form={"payload_json": json.dumps(payload, ensure_ascii=False)},
+                files={"files[0]": (filename, data, content_type)},
+                context=context,
+            )
+        body = response.json()
+        if not isinstance(body, dict):
+            raise DiscordError(f"Unexpected message payload when posting to {context}")
+        return dict(body)
+
     def _request(
         self,
         method: str,
         path: str,
         *,
         params: dict[str, str] | None = None,
+        json_body: Mapping[str, Any] | None = None,
+        form: Mapping[str, str] | None = None,
+        files: Mapping[str, Attachment] | None = None,
         context: str,
     ) -> httpx.Response:
         attempt = 0
         while True:
-            response = self._client.request(method, path, params=params)
+            response = self._client.request(
+                method,
+                path,
+                params=params,
+                json=json_body,
+                data=form,
+                files=files,
+            )
             status = response.status_code
             if status < 300:
                 return response
@@ -257,26 +323,32 @@ class DiscordClient:
                 self._sleep(delay)
                 continue
 
-            raise self._client_error(status, context, response)
+            raise self._client_error(status, context, response, method=method)
 
     def _client_error(
-        self, status: int, context: str, response: httpx.Response
+        self, status: int, context: str, response: httpx.Response, *, method: str
     ) -> DiscordRequestError:
         detail = self._detail(response)
         if status == 401:
+            action = "posting to" if method == "POST" else "reading"
             return DiscordUnauthorizedError(
-                f"Discord rejected the bot token while reading {context} (401). "
+                f"Discord rejected the bot token while {action} {context} (401). "
                 f"Check DISCORD_BOT_TOKEN. {detail}",
                 status_code=status,
                 context=context,
             )
         if status == 403:
-            return DiscordForbiddenError(
-                f"The bot is not allowed to read {context} (403). Grant View Channel and "
-                f"Read Message History. {detail}",
-                status_code=status,
-                context=context,
-            )
+            if method == "POST":
+                message = (
+                    f"The bot is not allowed to post to {context} (403). Grant View Channel, "
+                    f"Send Messages, and Attach Files. {detail}"
+                )
+            else:
+                message = (
+                    f"The bot is not allowed to read {context} (403). Grant View Channel and "
+                    f"Read Message History. {detail}"
+                )
+            return DiscordForbiddenError(message, status_code=status, context=context)
         if status == 404:
             return DiscordNotFoundError(
                 f"Discord could not find {context} (404). Check the configured ID. {detail}",
