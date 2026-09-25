@@ -228,11 +228,6 @@ def build_parser() -> argparse.ArgumentParser:
             "Defaults to the month recorded in the fetch manifest."
         ),
     )
-    normalize.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Log normalize progress to stderr.",
-    )
     normalize.set_defaults(func=_cmd_normalize)
 
     parser.set_defaults(verbose=False)

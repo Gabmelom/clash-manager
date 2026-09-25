@@ -44,7 +44,11 @@ MEMBERS_ONLY_NOTE = (
 
 
 def latest_display_name(events: Sequence[DomainEvent]) -> str | None:
-    """Latest in-window display name, preferring name-change then join/leave/role."""
+    """Display name from the latest in-window event that carries one.
+
+    Chronological last-write-wins: a later join, leave, or role change overwrites
+    an earlier name-change, matching the name ClashPerk put on that later log.
+    """
     name: str | None = None
     for event in sorted(events, key=lambda item: (item.occurred_at, item.event_key)):
         if isinstance(event, PlayerNameChanged) and event.new_name:
@@ -62,6 +66,7 @@ def build_monthly_dataset(
     *,
     diagnostics: Sequence[IgnoredMessage] = (),
     unused_channels: Sequence[str] = (),
+    extra_notes: Sequence[str] = (),
     clan_name: str = "Clan",
 ) -> MonthlyDataset:
     """Players keyed by tag, membership filled, activity metrics left missing."""
@@ -71,7 +76,8 @@ def build_monthly_dataset(
         _player_summary(membership, events_by_tag.get(tag, ()))
         for tag, membership in roster.players.items()
     ]
-    notes = _data_notes(diagnostics, unused_channels, roster)
+    notes = _data_notes(diagnostics, unused_channels, roster, events_by_tag)
+    notes.extend(extra_notes)
     return MonthlyDataset(
         month_label=window.month_label,
         clan_name=clan_name,
@@ -103,6 +109,11 @@ def _player_summary(
     if name is None:
         warnings.append("display name missing; using player tag")
         name = membership.player_tag
+    if len(membership.intervals) > 1:
+        warnings.append(
+            "left and rejoined during the month; ranking uses presence at month "
+            "start/end, not mid-month gaps"
+        )
     return MonthlyPlayerSummary(
         player_tag=membership.player_tag,
         current_display_name=name,
@@ -125,6 +136,7 @@ def _data_notes(
     diagnostics: Sequence[IgnoredMessage],
     unused_channels: Sequence[str],
     roster: MembershipRoster,
+    events_by_tag: dict[str, list[DomainEvent]],
 ) -> list[str]:
     notes = [MEMBERS_ONLY_NOTE]
     if diagnostics:
@@ -133,7 +145,11 @@ def _data_notes(
         notes.append(
             f"{name}.json is present but not parsed; that log family's parser is not wired yet."
         )
-    inferred = sum(1 for player in roster.players.values() if not player.joined_this_month)
+    inferred = sum(
+        1
+        for tag in roster.players
+        if not any(isinstance(event, MemberJoined) for event in events_by_tag.get(tag, ()))
+    )
     if inferred:
         notes.append(
             f"{inferred} player(s) had no join event in the window and were treated "

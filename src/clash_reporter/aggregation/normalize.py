@@ -68,15 +68,15 @@ class NormalizeResult:
 
 
 def window_from_manifest(path: Path, *, timezone: str) -> ReportingWindow | None:
-    """Resolve a reporting window from a fetch ``manifest.json``, if present."""
-    if not path.is_file():
+    """Resolve a reporting window from a fetch ``manifest.json``, if present.
+
+    Only ``month_key`` is used. Boundaries are always built in ``timezone``
+    (``Settings.report_timezone``), not the manifest's captured timezone. A
+    mismatch is recorded as a dataset data note by :func:`normalize_capture`.
+    """
+    payload = _load_manifest(path)
+    if payload is None:
         return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise NormalizeError(f"Invalid {MANIFEST_FILENAME}: {exc}") from exc
-    if not isinstance(payload, Mapping):
-        raise NormalizeError(f"{MANIFEST_FILENAME} must be a JSON object")
     window = payload.get("window")
     if not isinstance(window, Mapping):
         return None
@@ -120,11 +120,13 @@ def normalize_capture(
     outcome = parse_all(MembersParser(), messages)
     in_window = [event for event in outcome.events if window.contains(event.occurred_at)]
     unused = _unused_channel_files(input_dir)
+    extra_notes = [note for note in (_timezone_mismatch_note(input_dir, window),) if note]
     dataset = build_monthly_dataset(
         in_window,
         window,
         diagnostics=outcome.diagnostics,
         unused_channels=unused,
+        extra_notes=extra_notes,
     )
     events_payload = _events_payload(in_window, window)
     diagnostics_payload = _diagnostics_payload(outcome.diagnostics, unused)
@@ -147,6 +149,31 @@ def normalize_capture(
         player_count=len(dataset.players),
         ignored_count=len(outcome.diagnostics),
     )
+
+
+def _load_manifest(path: Path) -> Mapping[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise NormalizeError(f"Invalid {MANIFEST_FILENAME}: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise NormalizeError(f"{MANIFEST_FILENAME} must be a JSON object")
+    return payload
+
+
+def _timezone_mismatch_note(input_dir: Path, window: ReportingWindow) -> str | None:
+    payload = _load_manifest(input_dir / MANIFEST_FILENAME)
+    if payload is None:
+        return None
+    captured = payload.get("window")
+    if not isinstance(captured, Mapping):
+        return None
+    timezone = captured.get("timezone")
+    if not isinstance(timezone, str) or not timezone or timezone == window.timezone:
+        return None
+    return f"Fetch manifest timezone is {timezone}; eligible_days used {window.timezone}."
 
 
 def _unused_channel_files(input_dir: Path) -> list[str]:

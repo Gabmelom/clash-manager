@@ -121,6 +121,9 @@ def reconstruct_membership(
     - First observed event is a leave: present from window start until that leave.
     - Name/role events with no join/leave: present for the whole window.
     - Leave then rejoin produces two (or more) intervals; eligible days are the union.
+      ``joined_this_month`` / ``departed_this_month`` still mean presence at the
+      window start / end, so a gap in the middle does not mark the player new or
+      departed. Ranking depends on those flags.
     """
     grouped = _group_by_tag(events, window)
     players: dict[str, PlayerMembership] = {}
@@ -221,6 +224,8 @@ def _finalize(
     intervals: tuple[MembershipInterval, ...],
     window: ReportingWindow,
 ) -> PlayerMembership:
+    # Flags describe window-boundary presence, not mid-month churn. A
+    # leave-then-rejoin stays ranking-eligible when present at both ends.
     present_at_start = any(interval.start <= window.start_utc for interval in intervals)
     present_at_end = any(interval.end >= window.end_utc for interval in intervals)
     first = intervals[0]

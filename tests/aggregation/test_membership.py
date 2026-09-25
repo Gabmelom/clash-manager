@@ -247,3 +247,17 @@ def test_departed_and_full_month_membership_flags() -> None:
     assert by_tag[CASCADE].membership.eligible_days == 31
     assert by_tag[DUNE].membership.joined_this_month is False
     assert by_tag[DUNE].membership.departed_this_month is False
+    assert any("left and rejoined" in warning for warning in by_tag[DUNE].warnings)
+    inferred_notes = [note for note in dataset.data_notes if "no join event" in note]
+    assert inferred_notes == [
+        "2 player(s) had no join event in the window and were treated "
+        "as present from the start of the month."
+    ]
+
+
+def test_later_event_name_wins_over_earlier_name_change() -> None:
+    events = [
+        renamed(AURORA, "Old", "AuroraPrime", utc(2026, 8, 10), "rename"),
+        left(AURORA, "Aurora", utc(2026, 8, 20), "leave"),
+    ]
+    assert latest_display_name(events) == "Aurora"

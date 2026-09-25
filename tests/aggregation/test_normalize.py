@@ -228,3 +228,17 @@ def test_normalize_missing_members_file_fails_closed(
     )
     assert exit_code == 2
     assert "cp-members.json" in capsys.readouterr().err
+
+
+def test_manifest_timezone_mismatch_is_a_data_note(
+    clashperk_message: Message, tmp_path: Path
+) -> None:
+    raw = write_raw_capture(tmp_path / "raw", _sample_messages(clashperk_message))
+    manifest = json.loads((raw / "manifest.json").read_text(encoding="utf-8"))
+    manifest["window"]["timezone"] = "UTC"
+    (raw / "manifest.json").write_text(dump_json(manifest), encoding="utf-8")
+    result = normalize_capture(raw, tmp_path / "out", window=AUGUST)
+    assert any(
+        "Fetch manifest timezone is UTC" in note and "America/Toronto" in note
+        for note in result.dataset.data_notes
+    )

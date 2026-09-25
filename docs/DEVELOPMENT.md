@@ -90,8 +90,14 @@ What it does:
 
 - Reads `cp-members.json` (same layout `fetch` writes) and optional `manifest.json` for the month.
 - Parses join / leave / role / name events, de-duplicates by Discord message ID.
-- Reconstructs membership intervals and `eligible_days` in `REPORT_TIMEZONE`.
+- Reconstructs membership intervals and `eligible_days` in `REPORT_TIMEZONE`
+  (the process timezone, not a timezone stored on the fetch manifest). A
+  mismatch with the manifest timezone is recorded as a data note.
 - Writes `events.json`, `monthly_players.json`, and `diagnostics/parser_warnings.json`.
+- `joined_this_month` / `departed_this_month` mean presence at the window start /
+  end. A leave-then-rejoin still ranks if the player was in at both ends; the
+  mid-month gap is only on `intervals` and a per-player warning. Full #11 can
+  decide whether the report should surface that churn.
 
 What it deliberately does not do:
 
