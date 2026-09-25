@@ -122,7 +122,7 @@ Put weights and thresholds in config.
 
 ### Step 9 - Discord rendering
 
-Render concise Top Performers / Needs Review / New Members / Departed Members output.
+Render concise Top Performers / Needs Review / New Members / Departed Members output. Omit same-window join-and-leave players from both New and Departed (see `docs/REPORT_SPEC.md`).
 
 ### Step 10 - GitHub Actions
 
