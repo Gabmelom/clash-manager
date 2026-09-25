@@ -48,6 +48,7 @@ from clash_reporter.parsers.cwl import CwlParser
 from clash_reporter.parsers.donations import DonationsParser
 from clash_reporter.parsers.members import MembersParser
 from clash_reporter.parsers.wars import WarsParser
+from clash_reporter.roster import ClanRoster
 from clash_reporter.window import ReportingWindow, resolve_month
 
 __all__ = [
@@ -79,6 +80,7 @@ class NormalizeResult:
     event_count: int
     player_count: int
     ignored_count: int
+    roster_path: Path | None = None
 
 
 def window_from_manifest(path: Path, *, timezone: str) -> ReportingWindow | None:
@@ -121,8 +123,16 @@ def normalize_capture(
     output_dir: Path,
     *,
     window: ReportingWindow,
+    roster: ClanRoster | None = None,
 ) -> NormalizeResult:
-    """Parse ``#members`` from a fetch directory and write normalize artifacts."""
+    """Parse a fetch directory and write normalize artifacts.
+
+    ``roster`` is the current CoC clan member list. When it was fetched, unique
+    unmatched display names are filled from it and ``coc_roster.json`` is written
+    beside the dataset. When it is omitted, attribution stays Discord-only and
+    no roster file is written. A roster whose ``note`` is set was not applied;
+    the note is recorded and Discord attribution still runs.
+    """
     members_path = input_dir / f"{MEMBERS_CHANNEL_NAME}.json"
     if not members_path.is_file():
         raise NormalizeError(
@@ -147,6 +157,13 @@ def normalize_capture(
     in_window = [event for event in outcome.events if event_in_window(event, window)]
     missing = _missing_channel_files(input_dir)
     extra_notes = [note for note in (_timezone_mismatch_note(input_dir, window),) if note]
+    clan_roster = None
+    roster_path: Path | None = None
+    if roster is not None:
+        extra_notes.append(roster.data_note())
+        if roster.applied:
+            clan_roster = roster.members
+        roster_path = output_dir / "coc_roster.json"
     dataset = build_monthly_dataset(
         in_window,
         window,
@@ -154,6 +171,7 @@ def normalize_capture(
         missing_channels=missing,
         coverage=coverage,
         extra_notes=extra_notes,
+        clan_roster=clan_roster,
     )
     events_payload = _events_payload(in_window, window, parsed_channels)
     diagnostics_payload = _diagnostics_payload(
@@ -166,6 +184,8 @@ def normalize_capture(
     _write_json(events_path, events_payload)
     _write_json(dataset_path, dataset.model_dump(mode="json"))
     _write_json(diagnostics_path, diagnostics_payload)
+    if roster is not None and roster_path is not None:
+        _write_json(roster_path, roster.snapshot())
 
     return NormalizeResult(
         window=window,
@@ -177,6 +197,7 @@ def normalize_capture(
         event_count=len(in_window),
         player_count=len(dataset.players),
         ignored_count=len(outcome.diagnostics),
+        roster_path=roster_path,
     )
 
 

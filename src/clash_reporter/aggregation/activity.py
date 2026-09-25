@@ -1,9 +1,11 @@
 """Fold parsed war, CWL, Clan Games, capital, and donation events into metrics.
 
 Name-only rows are attached to a player tag only when that display name maps to
-exactly one tag from in-window member or per-player capital logs. A duplicate
-or unknown name stays unattributed. Weekly capital rows are raid-weekend
-context and are not added to per-player contribution or raid totals.
+exactly one tag. The index is built from in-window member and per-player capital
+logs first. A clan roster, when supplied, fills names that are still unmatched
+and unique on that roster. A duplicate or unknown name stays unattributed.
+Weekly capital rows are raid-weekend context and are not added to per-player
+contribution or raid totals.
 """
 
 from __future__ import annotations
@@ -28,7 +30,8 @@ from clash_reporter.events import (
     WarMissedAttacks,
 )
 from clash_reporter.models import Capital, ClanGames, Cwl, Donations, RegularWar
-from clash_reporter.parsers.base import DomainEvent
+from clash_reporter.parsers.base import DomainEvent, normalize_player_tag
+from clash_reporter.roster import RosterMember
 
 __all__ = [
     "ActivityCoverage",
@@ -75,9 +78,18 @@ class _WarBucket:
     destruction_incomplete: bool = False
 
 
-def attribute_activity(events: Sequence[DomainEvent]) -> AttributedActivity:
-    """Copy name-only events onto a tag when the display name is unique."""
+def attribute_activity(
+    events: Sequence[DomainEvent],
+    roster: Sequence[RosterMember] | None = None,
+) -> AttributedActivity:
+    """Copy name-only events onto a tag when the display name is unique.
+
+    ``roster`` is the current clan member list. It is consulted only for names
+    the Discord index did not already resolve or mark ambiguous.
+    """
     index, ambiguous = _name_index(events)
+    if roster:
+        index, ambiguous = _merge_roster(index, ambiguous, roster)
     attributed: list[DomainEvent] = []
     unmatched: set[str] = set()
     for event in events:
@@ -88,10 +100,11 @@ def attribute_activity(events: Sequence[DomainEvent]) -> AttributedActivity:
         if not isinstance(name, str):
             attributed.append(event)
             continue
-        if name in ambiguous:
+        key = _identity_name(name)
+        if key in ambiguous:
             attributed.append(event)
             continue
-        tag = index.get(name)
+        tag = index.get(key)
         if tag is None:
             unmatched.add(name)
             attributed.append(event)
@@ -315,8 +328,9 @@ def _name_index(events: Sequence[DomainEvent]) -> tuple[dict[str, str], set[str]
     owners: dict[str, set[str]] = {}
 
     def add(name: str | None, tag: str | None) -> None:
-        if name and tag:
-            owners.setdefault(name, set()).add(tag)
+        key = _identity_name(name or "")
+        if key and tag:
+            owners.setdefault(key, set()).add(tag)
 
     for event in events:
         if isinstance(event, MemberJoined | MemberLeft | PlayerRoleChanged):
@@ -329,6 +343,39 @@ def _name_index(events: Sequence[DomainEvent]) -> tuple[dict[str, str], set[str]
     ambiguous = {name for name, tags in owners.items() if len(tags) > 1}
     index = {name: next(iter(tags)) for name, tags in owners.items() if name not in ambiguous}
     return index, ambiguous
+
+
+def _merge_roster(
+    index: dict[str, str],
+    ambiguous: set[str],
+    roster: Sequence[RosterMember],
+) -> tuple[dict[str, str], set[str]]:
+    """Fill names Discord left unmatched when the roster name has one tag."""
+    owners: dict[str, set[str]] = {}
+    for member in roster:
+        key = _identity_name(member.name)
+        if not key:
+            continue
+        owners.setdefault(key, set()).add(normalize_player_tag(member.tag))
+    merged_index = dict(index)
+    merged_ambiguous = set(ambiguous)
+    for name, tags in owners.items():
+        if name in merged_index or name in merged_ambiguous:
+            continue
+        if len(tags) == 1:
+            merged_index[name] = next(iter(tags))
+        else:
+            merged_ambiguous.add(name)
+    return merged_index, merged_ambiguous
+
+
+def _identity_name(name: str) -> str:
+    """Exact display name, with ClashPerk's directional marks and outer space removed.
+
+    This is the only normalization applied before a name→tag lookup. It does not
+    fold case, strip punctuation, or fuzzy-match.
+    """
+    return name.replace("\u200e", "").replace("\u200f", "").strip()
 
 
 def _needs_name(event: DomainEvent) -> bool:

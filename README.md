@@ -4,7 +4,7 @@
 
 A lightweight monthly Discord reporting job for Clash of Clans clan management.
 
-The project relies on **ClashPerk** to collect and aggregate Clash of Clans data. It does **not** query the Supercell API directly and does **not** run as a 24/7 Discord bot.
+The project relies on **ClashPerk** to collect game activity. It does **not** run as a 24/7 Discord bot. The Clash of Clans API is used only to read the current clan roster so name-only logs can be tied to a player tag.
 
 Once per month, the job:
 
@@ -19,7 +19,7 @@ Once per month, the job:
 ## Goals
 
 - Keep ClashPerk as the source of truth for game-data aggregation.
-- Avoid direct Supercell API integration.
+- Use the Supercell API only as a current clan-roster identity index.
 - Avoid an always-running Discord process.
 - Eliminate manual ClashPerk export -> Google Sheets -> calculation workflows.
 - Make report calculations transparent and testable.
@@ -168,7 +168,16 @@ DISCORD_CLAN_GAMES_CHANNEL_ID=
 DISCORD_DONATIONS_CHANNEL_ID=
 DISCORD_REPORT_CHANNEL_ID=
 REPORT_TIMEZONE=America/Toronto
+COC_API_TOKEN=
+COC_CLAN_TAG=
 ```
+
+`COC_API_TOKEN` (secret) and `COC_CLAN_TAG` (variable or secret) are optional. When both
+are set, `normalize` and `run` fetch the current clan member list and use it to fill
+display names that Discord tag-bearing logs did not resolve. Wars, Clan Games, capital,
+and donations are still read from ClashPerk. If either value is missing, or the API
+errors, the run continues with Discord-only attribution and records a data note.
+The roster snapshot is written to `coc_roster.json` in the normalize output.
 
 Channel ID variables match the live Discord channels: `#members`, `#wars`, `#cwl`, `#capital`, `#clan-games` (`DISCORD_CLAN_GAMES_CHANNEL_ID`), and optional `#donations`. The first five are required for a monthly run.
 
@@ -176,9 +185,10 @@ Optional:
 
 ```text
 DISCORD_API_BASE_URL=   # defaults to https://discord.com/api; override for a local stub
+COC_API_BASE_URL=       # defaults to https://api.clashofclans.com/v1; override for a local stub
 ```
 
-Do not commit bot tokens or secrets.
+Do not commit bot tokens, CoC API tokens, or other secrets.
 
 ## Discord permissions
 
@@ -250,9 +260,9 @@ Each run writes one file per channel plus a `manifest.json` recording the channe
 
 Requires `DISCORD_BOT_TOKEN` and at least one data-channel ID (`DISCORD_MEMBERS_CHANNEL_ID`, `DISCORD_WARS_CHANNEL_ID`, `DISCORD_CWL_CHANNEL_ID`, `DISCORD_CAPITAL_CHANNEL_ID`, `DISCORD_CLAN_GAMES_CHANNEL_ID`, or optional `DISCORD_DONATIONS_CHANNEL_ID`). See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how to promote a captured file into `tests/fixtures/`.
 
-### Normalize a fetch directory (members-only)
+### Normalize a fetch directory
 
-`normalize` turns a `fetch` directory into the `MonthlyDataset` JSON that `report --dry-run` already consumes. Today it only parses `#members` (partial issue #11). War, CWL, Clan Games, capital, and donation metrics stay missing (`null`), not zero.
+`normalize` turns a `fetch` directory into the `MonthlyDataset` JSON that `report --dry-run` consumes. It parses every channel file that is present. A missing file leaves that family's metrics unknown (`null`), not zero. When `COC_API_TOKEN` and `COC_CLAN_TAG` are set, unmatched display names are filled from the current clan roster and `coc_roster.json` is written next to the dataset.
 
 ```bash
 clash-reporter normalize --input ./artifacts/raw --output ./artifacts/normalized

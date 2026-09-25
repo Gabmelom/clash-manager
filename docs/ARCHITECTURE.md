@@ -4,7 +4,9 @@
 
 ClashPerk is the data collector. Discord is the durable event / message store. This project is a short-lived monthly batch processor.
 
-The project deliberately avoids direct integration with the Clash of Clans / Supercell API.
+ClashPerk Discord logs are the source of wars, CWL, Clan Games, capital, and donations.
+The Clash of Clans API is used only to read the current clan roster (tag and name) so
+name-only logs can be attributed. It is not a metrics source.
 
 ## Components
 

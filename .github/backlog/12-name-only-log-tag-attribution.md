@@ -6,13 +6,13 @@ depends_on: [parser-framework-members]
 
 ## Status
 
-**Deferred. Do not implement this now.** Not `agent-ready`. Pick it up only when a real
-duplicate display name appears in a reporting window and Discord logs cannot tell the two
-players apart.
+**Superseded by GitHub issue #32.** Do not implement this file's policy.
 
-The current deliverable is the policy in `AGENTS.md`, `docs/CODING_AGENT_BRIEF.md`, and
-`docs/DATA_CONTRACT.md`. Full name→tag attribution, and any Clash of Clans API client, stay
-tabled.
+The decision recorded here — call the Clash of Clans API only to split a known duplicate
+display name, and do not build a roster client — is no longer in force. Current policy is
+in `docs/DATA_CONTRACT.md` (Identity), `AGENTS.md` ("Known deferred decisions"), and
+`docs/CODING_AGENT_BRIEF.md`: the current clan roster is a supplemental name→tag index on
+every run, and it is identity only. This file stays as history of the old decision.
 
 ## Context
 

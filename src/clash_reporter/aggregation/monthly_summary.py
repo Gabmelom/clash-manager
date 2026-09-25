@@ -8,7 +8,7 @@ notes say so. Observed zeros stay ``0``.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from clash_reporter.aggregation.activity import (
     ActivityCoverage,
@@ -18,8 +18,10 @@ from clash_reporter.aggregation.activity import (
     player_activity,
 )
 from clash_reporter.aggregation.membership import (
+    MembershipInterval,
     MembershipRoster,
     PlayerMembership,
+    count_eligible_days,
     reconstruct_membership,
 )
 from clash_reporter.events import (
@@ -31,6 +33,7 @@ from clash_reporter.events import (
 )
 from clash_reporter.models import Membership, MonthlyDataset, MonthlyPlayerSummary
 from clash_reporter.parsers.base import DomainEvent, IgnoredMessage
+from clash_reporter.roster import RosterMember
 from clash_reporter.window import ReportingWindow
 
 __all__ = [
@@ -104,14 +107,24 @@ def build_monthly_dataset(
     coverage: ActivityCoverage | None = None,
     extra_notes: Sequence[str] = (),
     clan_name: str = "Clan",
+    clan_roster: Sequence[RosterMember] | None = None,
 ) -> MonthlyDataset:
-    """Players keyed by tag. Activity is filled when ``coverage`` says it was parsed."""
+    """Players keyed by tag. Activity is filled when ``coverage`` says it was parsed.
+
+    ``clan_roster`` is an optional current-member index. It fills unmatched
+    display names and, for those tags, supplies a full-month membership when
+    Discord recorded no join or leave. It does not change intervals Discord
+    already reconstructed.
+    """
     in_window = [event for event in events if event_in_window(event, window)]
-    attributed = attribute_activity(in_window) if coverage is not None else None
+    attributed = attribute_activity(in_window, roster=clan_roster) if coverage is not None else None
     activity_events = attributed.events if attributed is not None else in_window
     member_events = _member_events(activity_events)
     roster = reconstruct_membership(member_events, window)
     events_by_tag = _events_by_tag(activity_events)
+    if clan_roster:
+        roster = _include_roster_players(roster, events_by_tag, clan_roster, window)
+    roster_names = {member.tag: member.name for member in clan_roster or ()}
     war_miss_keys, cwl_miss_keys = miss_log_keys(activity_events)
     players = [
         _player_summary(
@@ -120,6 +133,7 @@ def build_monthly_dataset(
             coverage,
             war_miss_keys=war_miss_keys,
             cwl_miss_keys=cwl_miss_keys,
+            roster_names=roster_names,
         )
         for tag, membership in roster.players.items()
     ]
@@ -142,6 +156,7 @@ def build_monthly_dataset(
         events_by_tag,
         () if attributed is None else attributed.unmatched_names,
         () if attributed is None else attributed.ambiguous_names,
+        roster_consulted=clan_roster is not None,
     )
     notes.extend(extra_notes)
     return MonthlyDataset(
@@ -182,8 +197,11 @@ def _player_summary(
     *,
     war_miss_keys: set[str] | None = None,
     cwl_miss_keys: set[str] | None = None,
+    roster_names: Mapping[str, str] | None = None,
 ) -> MonthlyPlayerSummary:
     name = latest_display_name(events)
+    if name is None and roster_names:
+        name = roster_names.get(membership.player_tag)
     warnings: list[str] = []
     if name is None:
         warnings.append("display name missing; using player tag")
@@ -229,6 +247,8 @@ def _data_notes(
     events_by_tag: dict[str, list[DomainEvent]],
     unmatched_names: Sequence[str],
     ambiguous_names: Sequence[str],
+    *,
+    roster_consulted: bool = False,
 ) -> list[str]:
     notes: list[str] = []
     if coverage is None:
@@ -240,8 +260,9 @@ def _data_notes(
         notes.append(_summarize_diagnostics(diagnostics, members_only=coverage is None))
     if unmatched_names:
         names = ", ".join(unmatched_names)
+        gap = "no unique Discord or clan-roster tag" if roster_consulted else "no unique member tag"
         notes.append(
-            f"Unmatched display names (no unique member tag): {names}. "
+            f"Unmatched display names ({gap}): {names}. "
             "Their activity was not assigned to a player."
         )
     if ambiguous_names:
@@ -263,6 +284,39 @@ def _data_notes(
     for warning in roster.warnings:
         notes.append(f"{warning.player_tag}: {warning.detail}")
     return notes
+
+
+def _include_roster_players(
+    roster: MembershipRoster,
+    events_by_tag: Mapping[str, Sequence[DomainEvent]],
+    clan_roster: Sequence[RosterMember],
+    window: ReportingWindow,
+) -> MembershipRoster:
+    """Add current members who have attributed activity but no Discord membership log.
+
+    They are treated as present for the whole window, the same rule as a member
+    whose only in-window logs are name or role changes. Departed players are not
+    on tonight's roster, so this does not invent a membership for them.
+    """
+    known = {member.tag: member for member in clan_roster}
+    players = dict(roster.players)
+    for tag in events_by_tag:
+        if tag in players or tag not in known:
+            continue
+        interval = MembershipInterval(start=window.start_utc, end=window.end_utc)
+        players[tag] = PlayerMembership(
+            player_tag=tag,
+            intervals=(interval,),
+            eligible_days=count_eligible_days((interval,), timezone=window.timezone),
+            joined_this_month=False,
+            departed_this_month=False,
+            joined_on=None,
+            left_on=None,
+        )
+    if len(players) == len(roster.players):
+        return roster
+    ordered = {tag: players[tag] for tag in sorted(players)}
+    return MembershipRoster(players=ordered, warnings=roster.warnings)
 
 
 def _summarize_diagnostics(diagnostics: Sequence[IgnoredMessage], *, members_only: bool) -> str:

@@ -92,7 +92,7 @@ class PlayerRoleChanged(_EventBase):
 class _IndexedNameEvent(BaseModel):
     """Player event from a name-only ClashPerk log.
 
-    ``player_tag`` stays ``None`` until a later attribution step (issue #12).
+    ``player_tag`` stays ``None`` until aggregation attributes the display name.
     ``event_index`` distinguishes several rows from one Discord message.
     """
 
@@ -171,7 +171,8 @@ class CwlLineupChange(_IndexedNameEvent):
 class _IndexedEvent(BaseModel):
     """Several name-only rows from one snapshot-style Discord message.
 
-    ``player_tag`` stays ``None`` until attribution (issue #12). ``row_index``
+    ``player_tag`` stays ``None`` until aggregation attributes the display name.
+    ``row_index``
     distinguishes leaderboard / summary rows. War/CWL use ``event_index``.
     """
 

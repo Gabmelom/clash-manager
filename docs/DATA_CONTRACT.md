@@ -20,26 +20,43 @@ Example:
 
 Player name is mutable and must not be used as the primary key.
 
-### Deferred: name-only log attribution
+### Name-only log attribution
 
 Most ClashPerk log families carry a display name and no player tag. Only per-player member
 events (join, leave, role, name change) and per-player capital logs include a tag, in the
 embed title `\u200e{name} ({tag})`.
 
-**Policy — table a general resolver until a real duplicate display name appears:**
+**Policy — Discord index first, current clan roster second:**
 
 - Canonical identity remains `player_tag`. Display name is never the primary key.
-- When a resolver is built, the default path is an in-window index from those tag-bearing
-  logs. Do not call any external game API for the common case.
-- The Clash of Clans / Supercell API may be used **only** to disambiguate a known duplicate
-  display name that Discord logs cannot separate. It is not a data-collection source and
-  must not be called for every player, preemptively, or as a general identity layer.
-- Until that rare case is implemented, do not add a CoC API client. Unresolved or ambiguous
-  names are diagnostics (`null` / `None`), never an invented tag and never a silent zero.
+- Build a name→tag index from tag-bearing logs in the reporting window (members
+  join/leave/role/name, per-player capital). A name that maps to one tag is used.
+  A name that maps to two tags is ambiguous and is not assigned.
+- Each run may also fetch the current clan member list from the Clash of Clans API
+  (`COC_API_TOKEN`, `COC_CLAN_TAG`). That list is an identity index only: tag and
+  current name. It fills display names that are still unmatched when the roster
+  name matches exactly one member. It does not override a Discord match and it
+  does not resolve a name Discord already marked ambiguous.
+- The API is not a metrics source. Wars, CWL, Clan Games, capital, and donations
+  still come only from ClashPerk Discord logs.
+- Lookup is exact after one sanitize: strip U+200E / U+200F and surrounding
+  whitespace. There is no case-folding or fuzzy match.
+- A missing token, a missing clan tag, or an API error records a data note.
+  Attribution continues from Discord logs alone.
+- Departed mid-month players may be absent from tonight's roster. Their tags
+  still have to come from in-window Discord leave, join, or capital logs.
+- A current member with attributed activity and no Discord membership log is
+  treated as present for the whole window. Discord join/leave intervals are
+  left as reconstructed.
+- Unresolved or ambiguous names stay diagnostics (`null` / `None`), never an
+  invented tag and never a silent zero.
+- The roster snapshot is written to the run artifacts (`coc_roster.json`) for
+  audit. It does not include the API token.
 
-This is the decision, not a design. Collision handling (renames, reused names, map position)
-belongs with the deferred implementation. See `AGENTS.md`, "Known deferred decisions", and
-`.github/backlog/12-name-only-log-tag-attribution.md`.
+Duplicate display names stay unmatched. Map-position disambiguation is out of
+scope. `.github/backlog/12-name-only-log-tag-attribution.md` recorded the older
+"API only for rare duplicates" policy; that policy is superseded by this section
+and by GitHub issue #32.
 
 ## Normalized event types
 

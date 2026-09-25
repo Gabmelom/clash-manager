@@ -12,9 +12,10 @@ Four commands exist today:
     parsers can be developed offline from real fixtures.
 
 ``normalize``
-    Reads a fetch directory, runs the members parser, and writes a
-    ``MonthlyDataset`` plus events and parser diagnostics. This is a members-only
-    slice of issue #11: war/CWL/games/capital/donation fields stay missing.
+    Reads a fetch directory, parses every channel file that is present, and
+    writes a ``MonthlyDataset``. A missing file leaves that family's metrics
+    unknown. When CoC credentials are set, the current clan roster fills
+    unmatched display names; a missing token or an API error is a data note.
 
 ``run``
     Fetches, normalizes, and renders one month. ``--post`` also delivers the
@@ -36,6 +37,7 @@ from pathlib import Path
 from clash_reporter import __version__
 from clash_reporter.aggregation import NormalizeError, normalize_capture
 from clash_reporter.aggregation.normalize import DEFAULT_NORMALIZED_OUTPUT, window_from_manifest
+from clash_reporter.coc_client import load_clan_roster
 from clash_reporter.collection import ChannelCaptureError, capture_channels
 from clash_reporter.collection.capture import MANIFEST_FILENAME
 from clash_reporter.completeness import posting_blockers
@@ -49,6 +51,7 @@ from clash_reporter.reporting import (
     render_csv,
     render_report,
 )
+from clash_reporter.roster import ClanRoster
 from clash_reporter.scoring import rank_players
 from clash_reporter.window import InvalidMonthError, ReportingWindow, resolve_month
 
@@ -141,7 +144,8 @@ def _cmd_normalize(args: argparse.Namespace) -> int:
     settings = Settings()
     try:
         window = _resolve_normalize_window(args, settings.report_timezone)
-        result = normalize_capture(args.input, args.output, window=window)
+        roster = load_clan_roster(settings)
+        result = normalize_capture(args.input, args.output, window=window, roster=roster)
     except (InvalidMonthError, NormalizeError) as exc:
         return _fail(str(exc))
 
@@ -149,6 +153,7 @@ def _cmd_normalize(args: argparse.Namespace) -> int:
         f"Normalizing {result.window.month_label} ({result.window.month_key}) "
         f"in {result.window.timezone} from {args.input}"
     )
+    _print_roster(roster)
     print(
         f"  {result.event_count} member events, {result.player_count} players "
         f"-> {result.dataset_path}"
@@ -183,13 +188,21 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 sanitize=False,
                 allow_partial=args.allow_partial,
             )
-            result = normalize_capture(args.raw_output, args.normalized_output, window=window)
+            roster = load_clan_roster(settings)
+            result = normalize_capture(
+                args.raw_output,
+                args.normalized_output,
+                window=window,
+                roster=roster,
+            )
+            _copy_roster_snapshot(result.roster_path, args.raw_output)
         except (ChannelCaptureError, DiscordError, NormalizeError) as exc:
             return _fail(str(exc))
         for channel in capture.channels:
             print(f"  {channel.name}: {channel.message_count} messages -> {channel.path}")
         for failure in capture.failures:
             print(f"  {failure.name}: not captured ({failure.reason})", file=sys.stderr)
+        _print_roster(roster)
         print(f"  {result.player_count} players -> {result.dataset_path}")
         dataset = result.dataset.model_copy(update={"month_label": window.month_label})
         report, csv_text = _ranked_report(dataset, settings, args.top)
@@ -213,6 +226,25 @@ def _cmd_run(args: argparse.Namespace) -> int:
             print(report)
             return 0
         return _post_report(settings, client, report, csv_text)
+
+
+def _print_roster(roster: ClanRoster) -> None:
+    if roster.note:
+        print(f"  {roster.note}", file=sys.stderr)
+        return
+    print(f"  CoC roster: {len(roster.members)} members")
+
+
+def _copy_roster_snapshot(roster_path: Path | None, raw_output: Path) -> None:
+    """Keep the audit snapshot next to the raw Discord capture."""
+    if roster_path is None or not roster_path.is_file():
+        return
+    raw_output.mkdir(parents=True, exist_ok=True)
+    payload = roster_path.read_text(encoding="utf-8")
+    destination = raw_output / "coc_roster.json"
+    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary.write_text(payload, encoding="utf-8")
+    temporary.replace(destination)
 
 
 def _write_rendered_report(output_dir: Path, report: str, csv_text: str) -> None:
@@ -307,8 +339,8 @@ def build_parser() -> argparse.ArgumentParser:
     normalize = subparsers.add_parser(
         "normalize",
         help=(
-            "Parse #members from a fetch directory into a MonthlyDataset. "
-            "Members-only: war/CWL/games/capital/donation fields stay missing."
+            "Parse a fetch directory into a MonthlyDataset. "
+            "Uses the CoC clan roster for unmatched names when configured."
         ),
     )
     normalize.add_argument(

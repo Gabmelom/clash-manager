@@ -4,8 +4,8 @@ Shared instructions for humans and coding agents working on **clash-reporter**, 
 Clash of Clans clan report built on ClashPerk's Discord logs.
 
 Read `docs/CODING_AGENT_BRIEF.md` before writing code. It contains the hard constraints
-(no Gateway bot, no database, player tag is the identity; no Clash of Clans API except the
-deferred duplicate-name case in **Known deferred decisions** below).
+(no Gateway bot, no database, player tag is the identity; the Clash of Clans API is
+an identity-only clan roster, see **Known deferred decisions** below).
 
 ## Work is orchestrated through GitHub issues
 
@@ -116,37 +116,37 @@ Run `ruff check .`, `mypy`, and `pytest` before opening a pull request.
 
 ## Known deferred decisions
 
-### Name-only ClashPerk logs — do not implement a name→tag resolver
+### Name-only ClashPerk logs — clan roster is a supplemental identity index
 
 Most ClashPerk Discord logs identify a player by **display name only**. A player tag
 appears only in per-player member logs (join / leave / role / name) and per-player capital
 logs, in the embed title `\u200e{name} ({tag})`. War and CWL attacks, missed attacks,
 lineup changes, Clan Games, capital weekly summaries, and donations are name-only.
 
-Player tag remains the canonical identity. **Table full name→tag attribution until a real
-duplicate display name appears in a reporting window.** Until then, do not build a resolver
-or a Clash of Clans API client.
+Player tag remains the canonical identity. Attribution order:
 
-When that work is un-deferred:
+1. Build name→tag from tag-bearing logs in the reporting window (members
+   join/leave/role/name, per-player capital).
+2. When `COC_API_TOKEN` and `COC_CLAN_TAG` are set, fetch the current clan member
+   list and fill names that are still unmatched, if that roster name maps to one tag.
+3. The Clash of Clans API is **identity only**. Do not pull wars, Clan Games, capital,
+   donations, or any other metric from it. Scoring stays ClashPerk Discord-only.
+4. Ambiguous names (two tags) and names absent from both indexes stay diagnostics
+   (`None` ≠ zero). Never invent a tag.
+5. Departed mid-month players may be missing from tonight's roster. Their Discord
+   tags remain required.
+6. A missing token, a missing clan tag, or an API error is a data note. Discord-only
+   attribution still runs.
 
-1. **Default path:** resolve names from tag-bearing logs in the same reporting window
-   (members join/leave/role/name, per-player capital). Do not call any external game API
-   for the common case.
-2. **Clash of Clans / Supercell API is allowed only** when there is a **known duplicate
-   display name** that Discord logs cannot disambiguate. Never call it preemptively, for
-   every player, or as the primary identity source.
-3. **Do not** build a general CoC-API identity layer "in case" duplicates appear. Document
-   the collision risk and move on.
-4. Ambiguous or unresolvable names stay diagnostics (`None` ≠ zero). Never invent a tag.
-
-See `docs/DATA_CONTRACT.md` (Identity) and
-`.github/backlog/12-name-only-log-tag-attribution.md`.
+`.github/backlog/12-name-only-log-tag-attribution.md` (API only for a known duplicate)
+is superseded. See `docs/DATA_CONTRACT.md` (Identity) and GitHub issue #32.
 
 ## Cursor Cloud specific instructions
 
 - There is no Discord access from CI or from a Cloud Agent sandbox. Verify changes with
   `pytest` and with offline CLI runs against fixtures under `tests/fixtures/`.
-- Exercise the Discord client with mocked `httpx` transports rather than live API calls.
+- Exercise the Discord client and the CoC roster client with mocked `httpx` transports.
+  Tests must not call the live Clash of Clans API.
 - The GitHub token available to Cloud Agents is read-only, so agents cannot file issues
   themselves. Add the issue to `.github/backlog/` and tell the user to run
   `python scripts/backlog.py sync`.
