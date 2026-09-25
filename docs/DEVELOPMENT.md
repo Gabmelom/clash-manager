@@ -175,12 +175,16 @@ tests/fixtures/
     name-change.json
   wars/
     attack.json
+    attack-missing-fields.json
     missed-attacks.json
     embed-final.json
+    unknown-layout.json
   cwl/
     attack.json
     missed-attacks.json
     lineup-change.json
+    embed-round.json
+    unknown-layout.json
   capital/
     contribution.json
     raid-attack.json

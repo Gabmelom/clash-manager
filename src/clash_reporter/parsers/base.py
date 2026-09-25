@@ -12,16 +12,22 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from clash_reporter.events import (
+    CwlAttack,
+    CwlLineupChange,
+    CwlMissedAttack,
     MemberJoined,
     MemberLeft,
     PlayerNameChanged,
     PlayerRoleChanged,
+    WarAttack,
+    WarMissedAttacks,
 )
 
 __all__ = [
     "DomainEvent",
     "IGNORED_MALFORMED",
     "IGNORED_MISSING_PLAYER_TAG",
+    "IGNORED_MISSING_WAR_CONTEXT",
     "IGNORED_UNKNOWN_LAYOUT",
     "IGNORED_UNSUPPORTED_LOG",
     "IgnoredMessage",
@@ -43,11 +49,22 @@ _TAG_MIN_LENGTH = 3
 IGNORED_MALFORMED = "malformed"
 IGNORED_UNKNOWN_LAYOUT = "unknown_layout"
 IGNORED_MISSING_PLAYER_TAG = "missing_player_tag"
+IGNORED_MISSING_WAR_CONTEXT = "missing_war_context"
 IGNORED_UNSUPPORTED_LOG = "unsupported_log"
 
-# Closed to membership events in this PR. Widen the union (and ``__all__``)
-# when war, CWL, games, or capital parsers start emitting their own types.
-type DomainEvent = MemberJoined | MemberLeft | PlayerNameChanged | PlayerRoleChanged
+# Closed to membership, regular-war, and CWL events. Widen the union (and
+# ``__all__``) when games or capital parsers start emitting their own types.
+type DomainEvent = (
+    MemberJoined
+    | MemberLeft
+    | PlayerNameChanged
+    | PlayerRoleChanged
+    | WarAttack
+    | WarMissedAttacks
+    | CwlAttack
+    | CwlMissedAttack
+    | CwlLineupChange
+)
 
 
 @dataclass(frozen=True)
